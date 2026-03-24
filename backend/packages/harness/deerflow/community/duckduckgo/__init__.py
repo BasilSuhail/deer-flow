@@ -1,0 +1,1 @@
+# DuckDuckGo native community tool
