@@ -1,6 +1,6 @@
 import json
 import logging
-import time
+import os
 import urllib.request
 from typing import Any
 
@@ -13,13 +13,8 @@ router = APIRouter(prefix="/api/stats", tags=["health"])
 
 logger = logging.getLogger(__name__)
 
-# Simple in-memory tracker for agent activity
-_agent_activity: dict[str, dict[str, Any]] = {}
-
-
-def report_agent_activity(agent_name: str, status: str = "busy") -> None:
-    """Report that an agent is active. Called from agent middleware/executor."""
-    _agent_activity[agent_name] = {"status": status, "last_seen": time.time()}
+# Shared status file written by LangGraph subagent executor
+_STATUS_FILE = os.environ.get("SUBAGENT_STATUS_FILE", "/app/logs/subagent_status.json")
 
 
 def _get_ollama_url() -> str:
@@ -32,7 +27,6 @@ def _get_ollama_url() -> str:
                 extra = getattr(m, "model_extra", {}) or {}
                 base_url = extra.get("base_url", "")
             if base_url and "11434" in str(base_url):
-                # Strip /v1 suffix to get the raw Ollama API URL
                 url = str(base_url).rstrip("/")
                 if url.endswith("/v1"):
                     url = url[:-3]
@@ -42,40 +36,25 @@ def _get_ollama_url() -> str:
     return "http://localhost:11434"
 
 
-def _get_agent_statuses() -> dict[str, str]:
-    """Return agent statuses based on real subagent activity and manual reports."""
-    now = time.time()
-    timeout = 30  # Consider idle after 30 seconds of no activity
-
-    # Default agents shown in dashboard
-    agents: dict[str, str] = {
-        "Lead Agent": "idle",
-        "Researcher": "idle",
-        "Coder": "idle",
-    }
-
-    # Check real subagent background tasks
+def _read_subagent_status() -> list[dict[str, Any]]:
+    """Read subagent status from shared file written by LangGraph executor."""
     try:
-        from deerflow.subagents.executor import SubagentStatus, _background_tasks, _background_tasks_lock
-
-        with _background_tasks_lock:
-            running_count = sum(
-                1 for t in _background_tasks.values()
-                if t.status in (SubagentStatus.RUNNING, SubagentStatus.PENDING)
-            )
-        if running_count > 0:
-            agents["Lead Agent"] = "busy"
-            agents["Researcher"] = "busy"
-    except ImportError:
-        pass
-
-    # Override with manual activity reports
-    for name, info in _agent_activity.items():
-        elapsed = now - info.get("last_seen", 0)
-        if elapsed < timeout:
-            agents[name] = info.get("status", "busy")
-
-    return agents
+        if not os.path.exists(_STATUS_FILE):
+            return []
+        with open(_STATUS_FILE) as f:
+            data = json.load(f)
+        # Only return tasks from the last 5 minutes (avoid stale data)
+        from datetime import datetime, timedelta
+        cutoff = (datetime.now() - timedelta(minutes=5)).isoformat()
+        tasks = []
+        for t in data.get("tasks", []):
+            started = t.get("started_at") or t.get("completed_at") or ""
+            if started >= cutoff or t.get("status") in ("pending", "running"):
+                tasks.append(t)
+        return tasks
+    except Exception:
+        logger.debug("Failed to read subagent status file", exc_info=True)
+        return []
 
 
 @router.get("")
@@ -112,7 +91,7 @@ async def get_stats():
     except Exception as e:
         logger.debug(f"Could not reach Ollama at {ollama_url}: {e}")
 
-    # --- Configured models ---
+    # --- Configured models (with role info) ---
     configured_models: list[dict[str, str]] = []
     try:
         config = get_app_config()
@@ -125,8 +104,8 @@ async def get_stats():
     except Exception:
         pass
 
-    # --- Agent status ---
-    agents = _get_agent_statuses()
+    # --- Subagent status (from shared file) ---
+    subagents = _read_subagent_status()
 
     return {
         "system_ram": system_ram,
@@ -137,5 +116,5 @@ async def get_stats():
             "total_vram_used": total_vram_used,
         },
         "configured_models": configured_models,
-        "agents": agents,
+        "subagents": subagents,
     }

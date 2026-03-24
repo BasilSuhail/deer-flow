@@ -3,7 +3,7 @@
 Ensures that structured content (list-of-blocks) is properly extracted to
 plain text, preventing raw Python repr strings from reaching the UI.
 
-See: https://github.com/bytedance/deer-flow/issues/1149
+See: https://github.com/BasilSuhail/deer-flow/issues/1149
 """
 
 from langchain_core.messages import ToolMessage

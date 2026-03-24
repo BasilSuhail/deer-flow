@@ -58,8 +58,11 @@ def create_chat_model(name: str | None = None, thinking_enabled: bool = False, *
         elif effective_wte.get("thinking", {}).get("type"):
             # Native langchain_anthropic: thinking is a direct constructor parameter
             kwargs.update({"thinking": {"type": "disabled"}})
+    # Strip reasoning_effort for models that don't support it (e.g. Ollama)
     if not model_config.supports_reasoning_effort and "reasoning_effort" in kwargs:
         del kwargs["reasoning_effort"]
+    if "reasoning_effort" in model_settings_from_config and not model_config.supports_reasoning_effort:
+        del model_settings_from_config["reasoning_effort"]
 
     # For Codex Responses API models: map thinking mode to reasoning_effort
     from deerflow.models.openai_codex_provider import CodexChatModel

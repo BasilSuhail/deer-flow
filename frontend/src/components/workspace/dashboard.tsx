@@ -3,11 +3,15 @@
 
 import {
   CpuIcon,
-  LayersIcon,
   HardDriveIcon,
   WifiIcon,
   WifiOffIcon,
-  ActivityIcon,
+  BrainIcon,
+  ZapIcon,
+  LoaderIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  ClockIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -30,15 +34,47 @@ function ProgressBar({ percent, color = "bg-primary" }: { percent: number; color
   );
 }
 
-function StatusDot({ status }: { status: string }) {
-  const color =
-    status === "busy"
-      ? "bg-yellow-500 animate-pulse"
-      : status === "error"
-        ? "bg-red-500"
-        : "bg-green-500";
-  return <span className={`inline-block size-2 rounded-full ${color}`} />;
+/** Match a configured model to its live Ollama process data by model ID. */
+function findOllamaModel(configured: any, ollamaModels: any[]): any | null {
+  if (!configured?.model) return null;
+  return ollamaModels.find((om) => {
+    const ollamaName = (om.name ?? "").toLowerCase();
+    const configModel = configured.model.toLowerCase();
+    return ollamaName === configModel || ollamaName.startsWith(configModel);
+  }) ?? null;
 }
+
+function SubagentStatusIcon({ status }: { status: string }) {
+  switch (status) {
+    case "running":
+      return <LoaderIcon className="size-3 text-yellow-500 animate-spin" />;
+    case "completed":
+      return <CheckCircleIcon className="size-3 text-green-500" />;
+    case "failed":
+      return <XCircleIcon className="size-3 text-red-500" />;
+    case "timed_out":
+      return <ClockIcon className="size-3 text-orange-500" />;
+    default:
+      return <ClockIcon className="size-3 text-muted-foreground" />;
+  }
+}
+
+function SubagentStatusLabel({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    pending: "text-muted-foreground",
+    running: "text-yellow-500",
+    completed: "text-green-500",
+    failed: "text-red-500",
+    timed_out: "text-orange-500",
+  };
+  return <span className={styles[status] ?? "text-muted-foreground"}>{status}</span>;
+}
+
+// Role labels for configured models by position
+const MODEL_ROLES: { label: string; icon: typeof BrainIcon; description: string }[] = [
+  { label: "Lead Agent", icon: BrainIcon, description: "Planning, tool calling & orchestration" },
+  { label: "Subagent", icon: ZapIcon, description: "Research, execution & web search" },
+];
 
 export function Dashboard() {
   const [stats, setStats] = useState<any>(null);
@@ -58,7 +94,7 @@ export function Dashboard() {
         .catch(() => setError(true));
     };
     fetchStats();
-    const interval = setInterval(fetchStats, 3000);
+    const interval = setInterval(fetchStats, 2000);
     return () => clearInterval(interval);
   }, []);
 
@@ -81,9 +117,16 @@ export function Dashboard() {
 
   const sysRam = stats.system_ram;
   const ollama = stats.ollama;
-  const agents = stats.agents ?? {};
-  const configuredModels = stats.configured_models ?? [];
-  const ollamaModels = ollama?.models ?? [];
+  const configuredModels: any[] = stats.configured_models ?? [];
+  const ollamaModels: any[] = ollama?.models ?? [];
+  const subagents: any[] = stats.subagents ?? [];
+
+  // Active subagents count
+  const activeSubagents = subagents.filter((s: any) => s.status === "running" || s.status === "pending");
+
+  // Compute total VRAM as percentage of system RAM for the combined bar
+  const totalVram = ollama?.total_vram_used ?? 0;
+  const vramPercent = sysRam.total > 0 ? (totalVram / sysRam.total) * 100 : 0;
 
   return (
     <div className="p-3 space-y-4 text-xs">
@@ -105,11 +148,11 @@ export function Dashboard() {
         </p>
       </section>
 
-      {/* Ollama Status + Models */}
+      {/* Ollama connection header */}
       <section>
-        <div className="flex items-center gap-1.5 mb-1.5 font-medium text-foreground">
+        <div className="flex items-center gap-1.5 mb-2 font-medium text-foreground">
           <CpuIcon className="size-3.5" />
-          <span>Ollama Models</span>
+          <span>Models</span>
           {ollama?.reachable ? (
             <WifiIcon className="size-3 text-green-500 ml-auto" />
           ) : (
@@ -117,68 +160,136 @@ export function Dashboard() {
           )}
         </div>
 
-        {ollamaModels.length > 0 ? (
-          <div className="space-y-2">
-            {ollamaModels.map((m: any, i: number) => (
-              <div key={i} className="bg-secondary/40 rounded-md p-2">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-mono text-foreground truncate" title={m.name}>
-                    {m.name}
-                  </span>
-                  <span className="text-green-500 ml-2 shrink-0">loaded</span>
-                </div>
-                <div className="text-muted-foreground">
-                  VRAM: {formatBytes(m.size_vram)}
-                </div>
-              </div>
-            ))}
-            <p className="text-muted-foreground">
-              Total VRAM: {formatBytes(ollama.total_vram_used)}
+        {/* Model VRAM bar (combined) */}
+        {totalVram > 0 && (
+          <div className="mb-2">
+            <ProgressBar percent={vramPercent} color="bg-violet-500" />
+            <p className="text-muted-foreground mt-1">
+              VRAM: {formatBytes(totalVram)} / {formatBytes(sysRam.total)}
             </p>
           </div>
-        ) : (
-          <div className="space-y-1.5">
-            {configuredModels.length > 0 ? (
-              configuredModels.map((m: any, i: number) => (
-                <div key={i} className="bg-secondary/40 rounded-md p-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-foreground truncate" title={m.model}>
-                      {m.display_name ?? m.model}
-                    </span>
-                    <span className="text-muted-foreground ml-2 shrink-0">
-                      {ollama?.reachable ? "not loaded" : "unreachable"}
-                    </span>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-muted-foreground">No models configured</p>
-            )}
-          </div>
         )}
-      </section>
 
-      {/* Agent Status */}
-      <section>
-        <div className="flex items-center gap-1.5 mb-1.5 font-medium text-foreground">
-          <ActivityIcon className="size-3.5" />
-          <span>Agents</span>
-          {Object.values(agents).some((s) => s === "busy") && (
-            <LayersIcon className="size-3 text-yellow-500 ml-auto animate-pulse" />
-          )}
+        {/* Per-model cards with role + usage merged */}
+        <div className="space-y-2">
+          {configuredModels.map((cm: any, i: number) => {
+            const role = MODEL_ROLES[i] ?? MODEL_ROLES[MODEL_ROLES.length - 1]!;
+            const RoleIcon = role!.icon;
+            const live = findOllamaModel(cm, ollamaModels);
+            const isLoaded = live !== null;
+            const vram = live?.size_vram ?? 0;
+
+            return (
+              <div
+                key={cm.name}
+                className={`rounded-md p-2 border transition-colors ${
+                  isLoaded
+                    ? "bg-secondary/40 border-primary/20"
+                    : "bg-secondary/20 border-transparent"
+                }`}
+              >
+                {/* Row 1: role + status */}
+                <div className="flex items-center gap-1.5 mb-1">
+                  <RoleIcon className="size-3 text-muted-foreground" />
+                  <span className="font-medium text-foreground">{role!.label}</span>
+                  <span className="ml-auto flex items-center gap-1">
+                    {isLoaded ? (
+                      <>
+                        <span className="inline-block size-1.5 rounded-full bg-green-500" />
+                        <span className="text-green-500">active</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="inline-block size-1.5 rounded-full bg-muted-foreground" />
+                        <span className="text-muted-foreground">
+                          {ollama?.reachable ? "standby" : "offline"}
+                        </span>
+                      </>
+                    )}
+                  </span>
+                </div>
+
+                {/* Row 2: model name */}
+                <div className="font-mono text-muted-foreground truncate" title={cm.model}>
+                  {cm.display_name ?? cm.model}
+                </div>
+
+                {/* Row 3: VRAM + role description */}
+                <div className="flex items-center justify-between mt-1 text-muted-foreground">
+                  <span>{role!.description}</span>
+                  {isLoaded && vram > 0 && (
+                    <span className="text-foreground">{formatBytes(vram)}</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
-        <div className="space-y-1">
-          {Object.entries(agents).map(([name, status]) => (
-            <div key={name} className="flex items-center justify-between">
-              <span className="text-muted-foreground">{name}</span>
-              <div className="flex items-center gap-1.5">
-                <span className={status === "busy" ? "text-yellow-500" : "text-green-500"}>
-                  {status as string}
-                </span>
-                <StatusDot status={status as string} />
+
+        {/* Show any Ollama models loaded that aren't in config */}
+        {ollamaModels
+          .filter((om: any) => !configuredModels.some((cm: any) => findOllamaModel(cm, [om])))
+          .map((om: any, i: number) => (
+            <div key={`extra-${i}`} className="rounded-md p-2 bg-secondary/20 mt-2">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-muted-foreground truncate">{om.name}</span>
+                <span className="text-muted-foreground">{formatBytes(om.size_vram)}</span>
               </div>
             </div>
           ))}
+      </section>
+
+      {/* Subagent Activity */}
+      <section>
+        <div className="flex items-center gap-1.5 mb-2 font-medium text-foreground">
+          <ZapIcon className="size-3.5" />
+          <span>Subagents</span>
+          {activeSubagents.length > 0 && (
+            <span className="ml-auto flex items-center gap-1 text-yellow-500">
+              <LoaderIcon className="size-3 animate-spin" />
+              <span>{activeSubagents.length}/3</span>
+            </span>
+          )}
+          {activeSubagents.length === 0 && (
+            <span className="ml-auto text-muted-foreground font-normal">idle</span>
+          )}
+        </div>
+
+        {/* Subagent slots - always show 3 slots */}
+        <div className="space-y-1.5">
+          {[0, 1, 2].map((slot) => {
+            const task = subagents[slot];
+            if (!task) {
+              return (
+                <div
+                  key={`slot-${slot}`}
+                  className="rounded-md p-1.5 bg-secondary/20 border border-transparent flex items-center gap-1.5"
+                >
+                  <span className="inline-block size-1.5 rounded-full bg-muted-foreground/30" />
+                  <span className="text-muted-foreground/50">Slot {slot + 1} — available</span>
+                </div>
+              );
+            }
+            const isActive = task.status === "running" || task.status === "pending";
+            return (
+              <div
+                key={task.task_id}
+                className={`rounded-md p-1.5 border flex items-center gap-1.5 ${
+                  isActive
+                    ? "bg-yellow-500/5 border-yellow-500/20"
+                    : task.status === "completed"
+                      ? "bg-green-500/5 border-green-500/20"
+                      : "bg-red-500/5 border-red-500/20"
+                }`}
+              >
+                <SubagentStatusIcon status={task.status} />
+                <span className="text-foreground truncate flex-1" title={task.description}>
+                  {task.description}
+                </span>
+                <SubagentStatusLabel status={task.status} />
+              </div>
+            );
+          })}
         </div>
       </section>
     </div>

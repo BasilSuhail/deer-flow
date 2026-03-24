@@ -114,7 +114,7 @@ def task_tool(
 
     # Start background execution (always async to prevent blocking)
     # Use tool_call_id as task_id for better traceability
-    task_id = executor.execute_async(prompt, task_id=tool_call_id)
+    task_id = executor.execute_async(prompt, task_id=tool_call_id, description=description)
 
     # Poll for task completion in backend (removes need for LLM to poll)
     poll_count = 0

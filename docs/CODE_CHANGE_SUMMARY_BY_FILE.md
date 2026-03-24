@@ -907,7 +907,7 @@ export function MarkdownContent({
 ```diff
 @@ -1,12 +1,3 @@
 -<citations>
--{"id": "cite-1", "title": "DeerFlow GitHub Repository", "url": "https://github.com/bytedance/deer-flow", "snippet": "..."}
+-{"id": "cite-1", "title": "DeerFlow GitHub Repository", "url": "https://github.com/BasilSuhail/deer-flow", "snippet": "..."}
 -...（共 7 条 JSONL）
 -</citations>
  # DeerFlow Deep Research Report
