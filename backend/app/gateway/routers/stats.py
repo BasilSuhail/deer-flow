@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import urllib.request
 from typing import Any
 
@@ -11,6 +12,9 @@ from deerflow.config.app_config import get_app_config
 router = APIRouter(prefix="/api/stats", tags=["health"])
 
 logger = logging.getLogger(__name__)
+
+# Shared status file written by LangGraph subagent executor
+_STATUS_FILE = os.environ.get("SUBAGENT_STATUS_FILE", "/app/logs/subagent_status.json")
 
 
 def _get_ollama_url() -> str:
@@ -30,6 +34,27 @@ def _get_ollama_url() -> str:
     except Exception:
         pass
     return "http://localhost:11434"
+
+
+def _read_subagent_status() -> list[dict[str, Any]]:
+    """Read subagent status from shared file written by LangGraph executor."""
+    try:
+        if not os.path.exists(_STATUS_FILE):
+            return []
+        with open(_STATUS_FILE) as f:
+            data = json.load(f)
+        # Only return tasks from the last 5 minutes (avoid stale data)
+        from datetime import datetime, timedelta
+        cutoff = (datetime.now() - timedelta(minutes=5)).isoformat()
+        tasks = []
+        for t in data.get("tasks", []):
+            started = t.get("started_at") or t.get("completed_at") or ""
+            if started >= cutoff or t.get("status") in ("pending", "running"):
+                tasks.append(t)
+        return tasks
+    except Exception:
+        logger.debug("Failed to read subagent status file", exc_info=True)
+        return []
 
 
 @router.get("")
@@ -79,6 +104,9 @@ async def get_stats():
     except Exception:
         pass
 
+    # --- Subagent status (from shared file) ---
+    subagents = _read_subagent_status()
+
     return {
         "system_ram": system_ram,
         "ollama": {
@@ -88,4 +116,5 @@ async def get_stats():
             "total_vram_used": total_vram_used,
         },
         "configured_models": configured_models,
+        "subagents": subagents,
     }

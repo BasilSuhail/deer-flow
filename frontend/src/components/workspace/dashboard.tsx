@@ -8,8 +8,12 @@ import {
   WifiOffIcon,
   BrainIcon,
   ZapIcon,
+  LoaderIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  ClockIcon,
 } from "lucide-react";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -36,9 +40,34 @@ function findOllamaModel(configured: any, ollamaModels: any[]): any | null {
   return ollamaModels.find((om) => {
     const ollamaName = (om.name ?? "").toLowerCase();
     const configModel = configured.model.toLowerCase();
-    // Match "qwen2.5:7b" to "qwen2.5:7b" or "deepseek-r1:7b" to "deepseek-r1:7b"
     return ollamaName === configModel || ollamaName.startsWith(configModel);
   }) ?? null;
+}
+
+function SubagentStatusIcon({ status }: { status: string }) {
+  switch (status) {
+    case "running":
+      return <LoaderIcon className="size-3 text-yellow-500 animate-spin" />;
+    case "completed":
+      return <CheckCircleIcon className="size-3 text-green-500" />;
+    case "failed":
+      return <XCircleIcon className="size-3 text-red-500" />;
+    case "timed_out":
+      return <ClockIcon className="size-3 text-orange-500" />;
+    default:
+      return <ClockIcon className="size-3 text-muted-foreground" />;
+  }
+}
+
+function SubagentStatusLabel({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    pending: "text-muted-foreground",
+    running: "text-yellow-500",
+    completed: "text-green-500",
+    failed: "text-red-500",
+    timed_out: "text-orange-500",
+  };
+  return <span className={styles[status] ?? "text-muted-foreground"}>{status}</span>;
 }
 
 // Role labels for configured models by position
@@ -65,7 +94,7 @@ export function Dashboard() {
         .catch(() => setError(true));
     };
     fetchStats();
-    const interval = setInterval(fetchStats, 3000);
+    const interval = setInterval(fetchStats, 2000);
     return () => clearInterval(interval);
   }, []);
 
@@ -90,6 +119,10 @@ export function Dashboard() {
   const ollama = stats.ollama;
   const configuredModels: any[] = stats.configured_models ?? [];
   const ollamaModels: any[] = ollama?.models ?? [];
+  const subagents: any[] = stats.subagents ?? [];
+
+  // Active subagents count
+  const activeSubagents = subagents.filter((s: any) => s.status === "running" || s.status === "pending");
 
   // Compute total VRAM as percentage of system RAM for the combined bar
   const totalVram = ollama?.total_vram_used ?? 0;
@@ -140,8 +173,8 @@ export function Dashboard() {
         {/* Per-model cards with role + usage merged */}
         <div className="space-y-2">
           {configuredModels.map((cm: any, i: number) => {
-            const role = MODEL_ROLES[i] ?? MODEL_ROLES[MODEL_ROLES.length - 1];
-            const RoleIcon = role.icon;
+            const role = MODEL_ROLES[i] ?? MODEL_ROLES[MODEL_ROLES.length - 1]!;
+            const RoleIcon = role!.icon;
             const live = findOllamaModel(cm, ollamaModels);
             const isLoaded = live !== null;
             const vram = live?.size_vram ?? 0;
@@ -158,7 +191,7 @@ export function Dashboard() {
                 {/* Row 1: role + status */}
                 <div className="flex items-center gap-1.5 mb-1">
                   <RoleIcon className="size-3 text-muted-foreground" />
-                  <span className="font-medium text-foreground">{role.label}</span>
+                  <span className="font-medium text-foreground">{role!.label}</span>
                   <span className="ml-auto flex items-center gap-1">
                     {isLoaded ? (
                       <>
@@ -183,7 +216,7 @@ export function Dashboard() {
 
                 {/* Row 3: VRAM + role description */}
                 <div className="flex items-center justify-between mt-1 text-muted-foreground">
-                  <span>{role.description}</span>
+                  <span>{role!.description}</span>
                   {isLoaded && vram > 0 && (
                     <span className="text-foreground">{formatBytes(vram)}</span>
                   )}
@@ -204,6 +237,60 @@ export function Dashboard() {
               </div>
             </div>
           ))}
+      </section>
+
+      {/* Subagent Activity */}
+      <section>
+        <div className="flex items-center gap-1.5 mb-2 font-medium text-foreground">
+          <ZapIcon className="size-3.5" />
+          <span>Subagents</span>
+          {activeSubagents.length > 0 && (
+            <span className="ml-auto flex items-center gap-1 text-yellow-500">
+              <LoaderIcon className="size-3 animate-spin" />
+              <span>{activeSubagents.length}/3</span>
+            </span>
+          )}
+          {activeSubagents.length === 0 && (
+            <span className="ml-auto text-muted-foreground font-normal">idle</span>
+          )}
+        </div>
+
+        {/* Subagent slots - always show 3 slots */}
+        <div className="space-y-1.5">
+          {[0, 1, 2].map((slot) => {
+            const task = subagents[slot];
+            if (!task) {
+              return (
+                <div
+                  key={`slot-${slot}`}
+                  className="rounded-md p-1.5 bg-secondary/20 border border-transparent flex items-center gap-1.5"
+                >
+                  <span className="inline-block size-1.5 rounded-full bg-muted-foreground/30" />
+                  <span className="text-muted-foreground/50">Slot {slot + 1} — available</span>
+                </div>
+              );
+            }
+            const isActive = task.status === "running" || task.status === "pending";
+            return (
+              <div
+                key={task.task_id}
+                className={`rounded-md p-1.5 border flex items-center gap-1.5 ${
+                  isActive
+                    ? "bg-yellow-500/5 border-yellow-500/20"
+                    : task.status === "completed"
+                      ? "bg-green-500/5 border-green-500/20"
+                      : "bg-red-500/5 border-red-500/20"
+                }`}
+              >
+                <SubagentStatusIcon status={task.status} />
+                <span className="text-foreground truncate flex-1" title={task.description}>
+                  {task.description}
+                </span>
+                <SubagentStatusLabel status={task.status} />
+              </div>
+            );
+          })}
+        </div>
       </section>
     </div>
   );

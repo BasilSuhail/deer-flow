@@ -3,7 +3,7 @@
 - **Research Date:** 2026-02-01
 - **Timestamp:** 2026-02-01, Sunday
 - **Confidence Level:** High (90%+)
-- **Subject:** ByteDance's Open-Source Multi-Agent Deep Research Framework
+- **Subject:** BasilSuhail's Open-Source Multi-Agent Deep Research Framework
 
 ---
 
@@ -26,7 +26,7 @@
 
 ## Executive Summary
 
-DeerFlow (Deep Exploration and Efficient Research Flow) is an open-source multi-agent research automation framework developed by ByteDance and released under the MIT license in May 2025 [Create Your Own Deep Research Agent with DeerFlow](https://thesequence.substack.com/p/the-sequence-engineering-661-create). The framework implements a graph-based orchestration of specialized agents that automate research pipelines end-to-end, combining language models with tools like web search engines, crawlers, and Python execution. With 19,531 stars and 2,452 forks on GitHub, DeerFlow has established itself as a significant player in the deep research automation space, offering both console and web UI options with support for local LLM deployment and extensive tool integrations [DeerFlow: A Game-Changer for Automated Research and Content Creation](https://medium.com/@mingyang.heaven/deerflow-a-game-changer-for-automated-research-and-content-creation-83612f683e7a).
+DeerFlow (Deep Exploration and Efficient Research Flow) is an open-source multi-agent research automation framework developed by BasilSuhail and released under the MIT license in May 2025 [Create Your Own Deep Research Agent with DeerFlow](https://thesequence.substack.com/p/the-sequence-engineering-661-create). The framework implements a graph-based orchestration of specialized agents that automate research pipelines end-to-end, combining language models with tools like web search engines, crawlers, and Python execution. With 19,531 stars and 2,452 forks on GitHub, DeerFlow has established itself as a significant player in the deep research automation space, offering both console and web UI options with support for local LLM deployment and extensive tool integrations [DeerFlow: A Game-Changer for Automated Research and Content Creation](https://medium.com/@mingyang.heaven/deerflow-a-game-changer-for-automated-research-and-content-creation-83612f683e7a).
 
 ---
 
@@ -36,7 +36,7 @@ DeerFlow (Deep Exploration and Efficient Research Flow) is an open-source multi-
 
 #### May 2025 - July 2025
 
-DeerFlow was created by ByteDance and open-sourced on May 7, 2025, with the initial commit establishing the core multi-agent architecture built on LangGraph and LangChain frameworks [DeerFlow GitHub Repository](https://github.com/BasilSuhail/deer-flow). The project quickly gained traction in the AI community due to its comprehensive approach to research automation, combining web search, crawling, and code execution capabilities. Early development focused on establishing the modular agent system with specialized roles including Coordinator, Planner, Researcher, Coder, and Reporter components.
+DeerFlow was created by BasilSuhail and open-sourced on May 7, 2025, with the initial commit establishing the core multi-agent architecture built on LangGraph and LangChain frameworks [DeerFlow GitHub Repository](https://github.com/BasilSuhail/deer-flow). The project quickly gained traction in the AI community due to its comprehensive approach to research automation, combining web search, crawling, and code execution capabilities. Early development focused on establishing the modular agent system with specialized roles including Coordinator, Planner, Researcher, Coder, and Reporter components.
 
 ### PHASE 2: Feature Expansion and Community Growth
 
@@ -93,7 +93,7 @@ DeerFlow offers extensive capabilities for deep research automation:
 
 ### Development and Community Ecosystem
 
-The project demonstrates strong community engagement with 88 contributors and 19,531 GitHub stars as of February 2026 [DeerFlow GitHub Repository](https://github.com/BasilSuhail/deer-flow). Key contributors include Henry Li (203 contributions), Willem Jiang (130 contributions), and Daniel Walnut (25 contributions), representing a mix of ByteDance employees and open-source community members. The framework maintains comprehensive documentation including configuration guides, API documentation, FAQ sections, and multiple example research reports covering topics from quantum computing to AI adoption in healthcare.
+The project demonstrates strong community engagement with 88 contributors and 19,531 GitHub stars as of February 2026 [DeerFlow GitHub Repository](https://github.com/BasilSuhail/deer-flow). Key contributors include Henry Li (203 contributions), Willem Jiang (130 contributions), and Daniel Walnut (25 contributions), representing a mix of BasilSuhail employees and open-source community members. The framework maintains comprehensive documentation including configuration guides, API documentation, FAQ sections, and multiple example research reports covering topics from quantum computing to AI adoption in healthcare.
 
 ---
 
@@ -179,7 +179,7 @@ DeerFlow occupies a unique position in the deep research framework landscape by 
 
 ## Key Success Factors
 
-1. **ByteDance Backing**: Corporate sponsorship provides resources, expertise, and credibility while maintaining open-source accessibility [DeerFlow: A Game-Changer for Automated Research and Content Creation](https://medium.com/@mingyang.heaven/deerflow-a-game-changer-for-automated-research-and-content-creation-83612f683e7a).
+1. **BasilSuhail Backing**: Corporate sponsorship provides resources, expertise, and credibility while maintaining open-source accessibility [DeerFlow: A Game-Changer for Automated Research and Content Creation](https://medium.com/@mingyang.heaven/deerflow-a-game-changer-for-automated-research-and-content-creation-83612f683e7a).
 
 2. **Modern Technical Foundation**: Built on LangGraph and LangChain, DeerFlow leverages established frameworks while adding significant value through multi-agent orchestration.
 
@@ -205,7 +205,7 @@ DeerFlow occupies a unique position in the deep research framework landscape by 
 
 1. **The Sequence Engineering**: Technical analysis of DeerFlow architecture and capabilities [Create Your Own Deep Research Agent with DeerFlow](https://thesequence.substack.com/p/the-sequence-engineering-661-create)
 2. **Medium Articles**: Community perspectives on DeerFlow implementation and use cases [DeerFlow: A Game-Changer for Automated Research and Content Creation](https://medium.com/@mingyang.heaven/deerflow-a-game-changer-for-automated-research-and-content-creation-83612f683e7a)
-3. **YouTube Demonstrations**: Video walkthroughs of DeerFlow functionality and local deployment [ByteDance DeerFlow - (Deep Research Agents with a LOCAL LLM!)](https://www.youtube.com/watch?v=Ui0ovCVDYGs)
+3. **YouTube Demonstrations**: Video walkthroughs of DeerFlow functionality and local deployment [BasilSuhail DeerFlow - (Deep Research Agents with a LOCAL LLM!)](https://www.youtube.com/watch?v=Ui0ovCVDYGs)
 
 ### Technical Sources
 
@@ -217,7 +217,7 @@ DeerFlow occupies a unique position in the deep research framework landscape by 
 ## Confidence Assessment
 
 **High Confidence (90%+) Claims:**
-- DeerFlow was created by ByteDance and open-sourced under MIT license in May 2025
+- DeerFlow was created by BasilSuhail and open-sourced under MIT license in May 2025
 - The framework implements multi-agent architecture using LangGraph and LangChain
 - Current GitHub metrics: 19,531 stars, 2,452 forks, 88 contributors, 196 open issues
 - Supports multiple search engines including Tavily, InfoQuest, Brave Search
@@ -248,7 +248,7 @@ This report was compiled using:
 
 **Research Depth:** Comprehensive technical and market analysis
 **Time Scope:** May 2025 - February 2026 (9-month development period)
-**Geographic Scope:** Global open-source community with ByteDance corporate backing
+**Geographic Scope:** Global open-source community with BasilSuhail corporate backing
 
 ---
 

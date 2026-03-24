@@ -1,7 +1,9 @@
 """Subagent execution engine."""
 
 import asyncio
+import json
 import logging
+import os
 import threading
 import uuid
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -21,6 +23,32 @@ from deerflow.models import create_chat_model
 from deerflow.subagents.config import SubagentConfig
 
 logger = logging.getLogger(__name__)
+
+# Shared status file path — written by LangGraph, read by Gateway.
+# Both containers mount ../logs → /app/logs.
+_STATUS_FILE = os.environ.get("SUBAGENT_STATUS_FILE", "/app/logs/subagent_status.json")
+
+
+def _write_status_file() -> None:
+    """Write current subagent statuses to a shared JSON file for the Gateway dashboard."""
+    try:
+        with _background_tasks_lock:
+            tasks = []
+            for task_id, result in _background_tasks.items():
+                tasks.append({
+                    "task_id": task_id,
+                    "status": result.status.value,
+                    "description": getattr(result, "description", None) or task_id,
+                    "started_at": result.started_at.isoformat() if result.started_at else None,
+                    "completed_at": result.completed_at.isoformat() if result.completed_at else None,
+                })
+        payload = {"tasks": tasks, "updated_at": datetime.now().isoformat()}
+        tmp = _STATUS_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(payload, f)
+        os.replace(tmp, _STATUS_FILE)
+    except Exception:
+        logger.debug("Failed to write subagent status file", exc_info=True)
 
 
 class SubagentStatus(Enum):
@@ -51,6 +79,7 @@ class SubagentResult:
     task_id: str
     trace_id: str
     status: SubagentStatus
+    description: str | None = None
     result: str | None = None
     error: str | None = None
     started_at: datetime | None = None
@@ -388,12 +417,13 @@ class SubagentExecutor:
             result.completed_at = datetime.now()
             return result
 
-    def execute_async(self, task: str, task_id: str | None = None) -> str:
+    def execute_async(self, task: str, task_id: str | None = None, description: str | None = None) -> str:
         """Start a task execution in the background.
 
         Args:
             task: The task description for the subagent.
             task_id: Optional task ID to use. If not provided, a random UUID will be generated.
+            description: Short human-readable description for the dashboard.
 
         Returns:
             Task ID that can be used to check status later.
@@ -407,12 +437,14 @@ class SubagentExecutor:
             task_id=task_id,
             trace_id=self.trace_id,
             status=SubagentStatus.PENDING,
+            description=description or task[:80],
         )
 
         logger.info(f"[trace={self.trace_id}] Subagent {self.config.name} starting async execution, task_id={task_id}, timeout={self.config.timeout_seconds}s")
 
         with _background_tasks_lock:
             _background_tasks[task_id] = result
+        _write_status_file()
 
         # Submit to scheduler pool
         def run_task():
@@ -420,6 +452,7 @@ class SubagentExecutor:
                 _background_tasks[task_id].status = SubagentStatus.RUNNING
                 _background_tasks[task_id].started_at = datetime.now()
                 result_holder = _background_tasks[task_id]
+            _write_status_file()
 
             try:
                 # Submit execution to execution pool with timeout
@@ -448,6 +481,7 @@ class SubagentExecutor:
                     _background_tasks[task_id].status = SubagentStatus.FAILED
                     _background_tasks[task_id].error = str(e)
                     _background_tasks[task_id].completed_at = datetime.now()
+            _write_status_file()
 
         _scheduler_pool.submit(run_task)
         return task_id
