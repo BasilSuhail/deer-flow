@@ -9,6 +9,7 @@ help:
 	@echo "  make config          - Generate local config files (aborts if config already exists)"
 	@echo "  make config-upgrade  - Merge new fields from config.example.yaml into config.yaml"
 	@echo "  make check           - Check if all required tools are installed"
+	@echo "  make doctor          - Run local diagnostic tool for system dependencies"
 	@echo "  make install         - Install all dependencies (frontend + backend)"
 	@echo "  make setup-sandbox   - Pre-pull sandbox container image (recommended)"
 	@echo "  make dev             - Start all services in development mode (with hot-reloading)"
@@ -38,6 +39,10 @@ config-upgrade:
 # Check required tools
 check:
 	@$(PYTHON) ./scripts/check.py
+
+# Run local diagnostic tool
+doctor:
+	@$(PYTHON) ./scripts/doctor.py
 
 # Install all dependencies
 install:
