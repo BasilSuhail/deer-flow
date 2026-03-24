@@ -1,0 +1,66 @@
+# 🚀 Quick Commands
+
+### Start the Application
+```bash
+cd repo && make docker-start
+```
+
+### Stop the Application
+```bash
+cd repo && make docker-stop
+```
+
+### Full Rebuild (Use if you change config or code)
+```bash
+cd repo && make docker-stop && make docker-init && make docker-start
+```
+
+---
+
+# DeerFlow Local Setup Summary
+
+The setup for the DeerFlow directory is complete and the repository is cloned into the repo folder.
+I followed the setup guide to generate and modify the configuration files for a local environment.
+
+## Completed Actions
+
+1 Configuration Generation
+I executed the make config command using python3.
+This created the initial config.yaml and .env files.
+
+2 Model Configuration
+The local qwen model is now in config.yaml.
+It points to the Ollama endpoint at http://host.docker.internal:11434/v1 for access within Docker.
+
+3 Planner and Reporter
+The planner and reporter sections are added to the configuration.
+Both utilize the local qwen model.
+
+4 Sandbox Isolation
+The AioSandboxProvider is enabled for Docker based isolation.
+Auto cleanup is active to maintain a clean environment.
+
+5 Search Tools
+The TavilySearch tool is updated to use the TAVILY_API_KEY environment variable.
+
+6 Environment Variables
+A placeholder for TAVILY_API_KEY is added to the .env file.
+
+## Important Note on DeerFlow 2.0
+
+DeerFlow 2.0 is a complete rewrite.
+Internal structures and tool paths differ from previous versions.
+I adjusted the paths to deerflow.community to ensure full compatibility with the current codebase.
+
+## Prerequisites
+
+Ensure Ollama is running on your host machine.
+Pull the required model using the following command.
+ollama pull qwen2.5:7b
+
+Update the TAVILY_API_KEY in the .env file with your actual key if you wish to use web search.
+
+## Built-in Web UI
+DeerFlow comes with a functional web interface.
+Once started, it is available locally at http://localhost:2026.
+You can use this interface to enter research topics and view generated reports.
