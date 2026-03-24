@@ -275,9 +275,9 @@ cd frontend
 pnpm check
 ```
 
-### PR Regression Checks
+### Local Regression Checks
 
-Every pull request runs the backend regression workflow at [.github/workflows/backend-unit-tests.yml](.github/workflows/backend-unit-tests.yml), including:
+Please run the backend regression tests locally before committing, including:
 
 - `tests/test_provisioner_kubeconfig.py`
 - `tests/test_docker_sandbox_mode_detection.py`
@@ -295,9 +295,9 @@ Every pull request runs the backend regression workflow at [.github/workflows/ba
 
 ## Need Help?
 
-- Check existing [Issues](https://github.com/bytedance/deer-flow/issues)
+- Check existing [Issues](https://github.com/BasilSuhail/deer-flow/issues)
 - Read the [Documentation](backend/docs/)
-- Ask questions in [Discussions](https://github.com/bytedance/deer-flow/discussions)
+- Ask questions in [Discussions](https://github.com/BasilSuhail/deer-flow/discussions)
 
 ## License
 

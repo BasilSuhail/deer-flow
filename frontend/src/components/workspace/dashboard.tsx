@@ -43,8 +43,8 @@ function findOllamaModel(configured: any, ollamaModels: any[]): any | null {
 
 // Role labels for configured models by position
 const MODEL_ROLES: { label: string; icon: typeof BrainIcon; description: string }[] = [
-  { label: "Lead Agent", icon: BrainIcon, description: "Planning & reasoning" },
-  { label: "Subagent", icon: ZapIcon, description: "Execution & tools" },
+  { label: "Lead Agent", icon: BrainIcon, description: "Planning, tool calling & orchestration" },
+  { label: "Subagent", icon: ZapIcon, description: "Research, execution & web search" },
 ];
 
 export function Dashboard() {

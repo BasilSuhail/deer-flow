@@ -9,9 +9,9 @@
 
 ## Repository Information
 
-- **Name:** bytedance/deer-flow
-- **Description:** DeerFlow is a community-driven Deep Research framework, combining language models with tools like web search, crawling, and Python execution, while contributing back to the open-source community [DeerFlow GitHub Repository](https://github.com/bytedance/deer-flow)
-- **URL:** https://github.com/bytedance/deer-flow
+- **Name:** BasilSuhail/deer-flow
+- **Description:** DeerFlow is a community-driven Deep Research framework, combining language models with tools like web search, crawling, and Python execution, while contributing back to the open-source community [DeerFlow GitHub Repository](https://github.com/BasilSuhail/deer-flow)
+- **URL:** https://github.com/BasilSuhail/deer-flow
 - **Stars:** 19,531
 - **Forks:** 2,452
 - **Open Issues:** 196
@@ -36,7 +36,7 @@ DeerFlow (Deep Exploration and Efficient Research Flow) is an open-source multi-
 
 #### May 2025 - July 2025
 
-DeerFlow was created by ByteDance and open-sourced on May 7, 2025, with the initial commit establishing the core multi-agent architecture built on LangGraph and LangChain frameworks [DeerFlow GitHub Repository](https://github.com/bytedance/deer-flow). The project quickly gained traction in the AI community due to its comprehensive approach to research automation, combining web search, crawling, and code execution capabilities. Early development focused on establishing the modular agent system with specialized roles including Coordinator, Planner, Researcher, Coder, and Reporter components.
+DeerFlow was created by ByteDance and open-sourced on May 7, 2025, with the initial commit establishing the core multi-agent architecture built on LangGraph and LangChain frameworks [DeerFlow GitHub Repository](https://github.com/BasilSuhail/deer-flow). The project quickly gained traction in the AI community due to its comprehensive approach to research automation, combining web search, crawling, and code execution capabilities. Early development focused on establishing the modular agent system with specialized roles including Coordinator, Planner, Researcher, Coder, and Reporter components.
 
 ### PHASE 2: Feature Expansion and Community Growth
 
@@ -93,7 +93,7 @@ DeerFlow offers extensive capabilities for deep research automation:
 
 ### Development and Community Ecosystem
 
-The project demonstrates strong community engagement with 88 contributors and 19,531 GitHub stars as of February 2026 [DeerFlow GitHub Repository](https://github.com/bytedance/deer-flow). Key contributors include Henry Li (203 contributions), Willem Jiang (130 contributions), and Daniel Walnut (25 contributions), representing a mix of ByteDance employees and open-source community members. The framework maintains comprehensive documentation including configuration guides, API documentation, FAQ sections, and multiple example research reports covering topics from quantum computing to AI adoption in healthcare.
+The project demonstrates strong community engagement with 88 contributors and 19,531 GitHub stars as of February 2026 [DeerFlow GitHub Repository](https://github.com/BasilSuhail/deer-flow). Key contributors include Henry Li (203 contributions), Willem Jiang (130 contributions), and Daniel Walnut (25 contributions), representing a mix of ByteDance employees and open-source community members. The framework maintains comprehensive documentation including configuration guides, API documentation, FAQ sections, and multiple example research reports covering topics from quantum computing to AI adoption in healthcare.
 
 ---
 
@@ -197,7 +197,7 @@ DeerFlow occupies a unique position in the deep research framework landscape by 
 
 ### Primary Sources
 
-1. **DeerFlow GitHub Repository**: Official source code, documentation, and development history [DeerFlow GitHub Repository](https://github.com/bytedance/deer-flow)
+1. **DeerFlow GitHub Repository**: Official source code, documentation, and development history [DeerFlow GitHub Repository](https://github.com/BasilSuhail/deer-flow)
 2. **DeerFlow Official Website**: Platform showcasing features, case studies, and deployment options [DeerFlow Official Website](https://deerflow.tech/)
 3. **GitHub API Data**: Repository metrics, contributor statistics, and commit history
 

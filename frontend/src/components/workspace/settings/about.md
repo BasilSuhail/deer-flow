@@ -1,4 +1,4 @@
-# 🦌 [About DeerFlow 2.0](https://github.com/bytedance/deer-flow)
+# 🦌 [About DeerFlow 2.0](https://github.com/BasilSuhail/deer-flow)
 
 > **From Open Source, Back to Open Source**
 
@@ -10,7 +10,7 @@ different levels of tasks that could take minutes to hours.
 
 ## 🌟 GitHub Repository
 
-Explore DeerFlow on GitHub: [github.com/bytedance/deer-flow](https://github.com/bytedance/deer-flow)
+Explore DeerFlow on GitHub: [github.com/BasilSuhail/deer-flow](https://github.com/BasilSuhail/deer-flow)
 
 ## 🌐 Official Website
 

@@ -41,6 +41,6 @@ You have access to the sandbox environment:
 """,
     tools=["bash", "ls", "read_file", "write_file", "str_replace"],  # Sandbox tools only
     disallowed_tools=["task", "ask_clarification", "present_files"],
-    model="qwen",  # Use fast Qwen for command execution
+    model="llama",  # Llama 3.1 for command execution
     max_turns=30,
 )

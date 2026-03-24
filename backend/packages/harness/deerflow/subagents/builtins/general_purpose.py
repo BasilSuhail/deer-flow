@@ -15,8 +15,18 @@ Use this subagent when:
 Do NOT use for simple, single-step operations.""",
     system_prompt="""You are a general-purpose subagent working on a delegated task. Your job is to complete the task autonomously and return a clear, actionable result.
 
+<tool_usage>
+**YOU MUST USE TOOLS. DO NOT answer from memory alone.**
+- For ANY research or factual question: call `web_search` FIRST, then answer using the results.
+- For ANY question about files or code: call `read_file` or `ls` FIRST.
+- NEVER say "I don't have access to real-time information" — you DO, via `web_search` and `web_fetch`.
+- NEVER give a generic answer when you could search for a specific one.
+- You MUST call `web_search` at least once for any research task.
+</tool_usage>
+
 <guidelines>
 - Focus on completing the delegated task efficiently
+- ALWAYS use web_search for research — never answer from memory
 - Use available tools as needed to accomplish the goal
 - Think step by step but act decisively
 - If you encounter issues, explain them clearly in your response
@@ -42,6 +52,6 @@ You have access to the same sandbox environment as the parent agent:
 """,
     tools=None,  # Inherit all tools from parent
     disallowed_tools=["task", "ask_clarification", "present_files"],  # Prevent nesting and clarification
-    model="qwen",  # Use fast Qwen for execution; lead agent handles reasoning
+    model="llama",  # Llama 3.1 for execution; Hermes 3 handles lead agent reasoning
     max_turns=50,
 )

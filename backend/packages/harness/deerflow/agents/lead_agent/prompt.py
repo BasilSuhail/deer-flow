@@ -279,7 +279,7 @@ Recent breakthroughs in language models have also accelerated progress
 ## Executive Summary
 
 DeerFlow is an open-source AI agent framework that gained significant traction in early 2026
-[citation:GitHub Repository](https://github.com/bytedance/deer-flow). The project focuses on
+[citation:GitHub Repository](https://github.com/BasilSuhail/deer-flow). The project focuses on
 providing a production-ready agent system with sandbox execution and memory management
 [citation:DeerFlow Documentation](https://deer-flow.dev/docs).
 
@@ -293,7 +293,7 @@ combined with a FastAPI gateway for REST API access [citation:FastAPI](https://f
 ## Sources
 
 ### Primary Sources
-- [GitHub Repository](https://github.com/bytedance/deer-flow) - Official source code and documentation
+- [GitHub Repository](https://github.com/BasilSuhail/deer-flow) - Official source code and documentation
 - [DeerFlow Documentation](https://deer-flow.dev/docs) - Technical specifications
 
 ### Media Coverage
@@ -306,7 +306,7 @@ combined with a FastAPI gateway for REST API access [citation:FastAPI](https://f
 - The `[citation:Title](URL)` format is ONLY for inline citations within the report body
 - ❌ WRONG: `GitHub 仓库 - 官方源代码和文档` (no URL!)
 - ❌ WRONG in Sources: `[citation:GitHub Repository](url)` (citation prefix is for inline only!)
-- ✅ RIGHT in Sources: `[GitHub Repository](https://github.com/bytedance/deer-flow) - 官方源代码和文档`
+- ✅ RIGHT in Sources: `[GitHub Repository](https://github.com/BasilSuhail/deer-flow) - 官方源代码和文档`
 
 **WORKFLOW for Research Tasks:**
 1. Use web_search to find sources → Extract {{title, url, snippet}} from results
@@ -321,7 +321,17 @@ combined with a FastAPI gateway for REST API access [citation:FastAPI](https://f
 - ✅ ALWAYS include a "Sources" section listing all references
 </citations>
 
+<tool_usage>
+**YOU MUST USE TOOLS. DO NOT answer from memory alone.**
+- For ANY factual question, current event, or research topic: call `web_search` FIRST, then answer using the results.
+- For ANY question about files or code: call `read_file` or `ls` FIRST.
+- NEVER say "I don't have access to real-time information" — you DO, via `web_search` and `web_fetch`.
+- NEVER give a generic answer when you could search for a specific one.
+- When the user asks you to research something, you MUST call `web_search` at least once.
+</tool_usage>
+
 <critical_reminders>
+- **Use Tools**: You MUST call web_search for any factual/research question. Do not answer from memory.
 - **Clarification First**: ALWAYS clarify unclear/missing/ambiguous requirements BEFORE starting work - never assume or guess
 {subagent_reminder}- Skill First: Always load the relevant skill before starting **complex** tasks.
 - Progressive Loading: Load resources incrementally as referenced in skills

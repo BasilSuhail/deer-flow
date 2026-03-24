@@ -2,7 +2,7 @@
  * About DeerFlow markdown content. Inlined to avoid raw-loader dependency
  * (Turbopack cannot resolve raw-loader for .md imports).
  */
-export const aboutMarkdown = `# 🦌 [About DeerFlow 2.0](https://github.com/bytedance/deer-flow)
+export const aboutMarkdown = `# 🦌 [About DeerFlow 2.0](https://github.com/BasilSuhail/deer-flow)
 
 > **From Open Source, Back to Open Source**
 
@@ -22,9 +22,9 @@ DeerFlow (**D**eep **E**xploration and **E**fficient **R**esearch **Flow**) is a
 
 ## 🌟 GitHub Repository
 
-![Star History Chart](https://api.star-history.com/svg?repos=bytedance/deer-flow&type=Date)
+![Star History Chart](https://api.star-history.com/svg?repos=BasilSuhail/deer-flow&type=Date)
 
-Explore DeerFlow on GitHub: [github.com/bytedance/deer-flow](https://github.com/bytedance/deer-flow)
+Explore DeerFlow on GitHub: [github.com/BasilSuhail/deer-flow](https://github.com/BasilSuhail/deer-flow)
 
 ## 🌐 Official Website
 

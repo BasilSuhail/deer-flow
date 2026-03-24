@@ -9,4 +9,4 @@ Current we have two branches to maintain:
 
 ## Reporting a Vulnerability
 
-Please go to https://github.com/bytedance/deer-flow/security to report the vulnerability you find.
+Please go to https://github.com/BasilSuhail/deer-flow/security to report the vulnerability you find.
