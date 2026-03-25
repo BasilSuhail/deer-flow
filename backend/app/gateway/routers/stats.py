@@ -43,9 +43,9 @@ def _read_subagent_status() -> list[dict[str, Any]]:
             return []
         with open(_STATUS_FILE) as f:
             data = json.load(f)
-        # Only return active tasks or recently completed ones (30s window)
+        # Show active tasks + recently completed ones (60s window)
         from datetime import datetime, timedelta
-        cutoff = (datetime.now() - timedelta(seconds=30)).isoformat()
+        cutoff = (datetime.now() - timedelta(seconds=60)).isoformat()
         tasks = []
         for t in data.get("tasks", []):
             # Always show pending/running tasks

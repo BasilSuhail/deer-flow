@@ -12,7 +12,7 @@ from typing import override
 
 from langchain.agents import AgentState
 from langchain.agents.middleware import AgentMiddleware
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.runtime import Runtime
 
 logger = logging.getLogger(__name__)
@@ -59,16 +59,28 @@ class SubagentExpandMiddleware(AgentMiddleware[AgentState]):
         self.target_subagents = min(target_subagents, len(_ASPECT_SUFFIXES))
 
     def _should_expand(self, state: AgentState) -> bool:
-        """Return True if this is the first model response with a task call."""
+        """Return True if this is the first task call for the current user turn.
+
+        Checks only messages AFTER the last HumanMessage (excluding the
+        current last message which is being processed). This ensures
+        expansion happens for every new user question, not just the first.
+        """
         messages = state.get("messages", [])
-        # Check if any PREVIOUS AI message already had a task call
-        # (skip the last message which is the current one being processed)
-        for m in messages[:-1]:
+
+        # Find the last HumanMessage index
+        last_human_idx = -1
+        for i in range(len(messages) - 1, -1, -1):
+            if isinstance(messages[i], HumanMessage):
+                last_human_idx = i
+                break
+
+        # Check AI messages between last human and current (skip last msg)
+        for m in messages[last_human_idx + 1 : -1]:
             if not isinstance(m, AIMessage):
                 continue
             for tc in getattr(m, "tool_calls", None) or []:
                 if tc.get("name") == "task":
-                    return False  # Already expanded before
+                    return False  # Already expanded for this turn
         return True
 
     def _expand_task_calls(self, state: AgentState) -> dict | None:

@@ -94,7 +94,7 @@ class SubagentResult:
 
 # Global storage for background task results
 _background_tasks: dict[str, SubagentResult] = {}
-_background_tasks_lock = threading.Lock()
+_background_tasks_lock = threading.RLock()
 
 # Thread pool for background task scheduling and orchestration
 _scheduler_pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="subagent-scheduler-")
@@ -102,6 +102,20 @@ _scheduler_pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="subagent
 # Thread pool for actual subagent execution (with timeout support)
 # Larger pool to avoid blocking when scheduler submits execution tasks
 _execution_pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="subagent-exec-")
+
+
+def _clear_status_file_on_startup() -> None:
+    """Clear stale status file on module import (container restart)."""
+    try:
+        tmp = _STATUS_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump({"tasks": [], "updated_at": datetime.now().isoformat()}, f)
+        os.replace(tmp, _STATUS_FILE)
+    except Exception:
+        pass
+
+
+_clear_status_file_on_startup()
 
 
 def _filter_tools(
@@ -400,7 +414,22 @@ class SubagentExecutor:
         # an async context where an event loop already exists). Subagent execution
         # errors are handled within _aexecute() and returned as FAILED status.
         try:
-            return asyncio.run(self._aexecute(task, result_holder))
+            # Use a dedicated event loop instead of asyncio.run() to avoid
+            # "Event loop is closed" errors when multiple subagents share
+            # httpx/httpcore connection pools. asyncio.run() aggressively
+            # closes the loop and all transports, which races with other
+            # subagents' HTTP connections.
+            loop = asyncio.new_event_loop()
+            try:
+                return loop.run_until_complete(self._aexecute(task, result_holder))
+            finally:
+                # Shut down async generators and executor, but don't close
+                # the loop until pending tasks are cancelled gracefully.
+                try:
+                    loop.run_until_complete(loop.shutdown_asyncgens())
+                except Exception:
+                    pass
+                loop.close()
         except Exception as e:
             logger.exception(f"[trace={self.trace_id}] Subagent {self.config.name} execution failed")
             # Create a result with error if we don't have one
@@ -514,37 +543,46 @@ def list_background_tasks() -> list[SubagentResult]:
 
 
 def cleanup_background_task(task_id: str) -> None:
-    """Remove a completed task from background tasks.
+    """Mark a completed task for eventual cleanup.
 
-    Should be called by task_tool after it finishes polling and returns the result.
-    This prevents memory leaks from accumulated completed tasks.
-
-    Only removes tasks that are in a terminal state (COMPLETED/FAILED/TIMED_OUT)
-    to avoid race conditions with the background executor still updating the task entry.
+    Instead of deleting immediately, we keep the task in memory so the
+    dashboard status file still shows it as completed. A background sweep
+    (or the next cleanup call) removes tasks that finished >60s ago.
 
     Args:
-        task_id: The task ID to remove.
+        task_id: The task ID to mark for cleanup.
     """
     with _background_tasks_lock:
         result = _background_tasks.get(task_id)
         if result is None:
-            # Nothing to clean up; may have been removed already.
             logger.debug("Requested cleanup for unknown background task %s", task_id)
             return
 
-        # Only clean up tasks that are in a terminal state to avoid races with
-        # the background executor still updating the task entry.
+        # Sweep old completed tasks (finished >60s ago) to prevent memory leaks
+        now = datetime.now()
+        stale_ids = []
+        for tid, r in _background_tasks.items():
+            if r.completed_at and (now - r.completed_at).total_seconds() > 60:
+                stale_ids.append(tid)
+        for tid in stale_ids:
+            del _background_tasks[tid]
+            logger.debug("Swept stale background task: %s", tid)
+
         is_terminal_status = result.status in {
             SubagentStatus.COMPLETED,
             SubagentStatus.FAILED,
             SubagentStatus.TIMED_OUT,
         }
         if is_terminal_status or result.completed_at is not None:
-            del _background_tasks[task_id]
-            logger.debug("Cleaned up background task: %s", task_id)
+            # Don't delete yet — keep it so the dashboard shows "completed"
+            logger.debug("Background task %s marked for cleanup (will be swept after 60s)", task_id)
         else:
             logger.debug(
                 "Skipping cleanup for non-terminal background task %s (status=%s)",
                 task_id,
                 result.status.value if hasattr(result.status, "value") else result.status,
             )
+
+    # Write status file OUTSIDE the lock to avoid deadlock
+    # (_write_status_file also acquires _background_tasks_lock)
+    _write_status_file()

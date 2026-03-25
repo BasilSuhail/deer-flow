@@ -348,6 +348,9 @@ def make_lead_agent(config: RunnableConfig):
     except Exception:
         pass
 
+    import sys
+    print(f"[DEERFLOW] make_lead_agent: model={model_name}, is_local={is_local_model}, subagent={subagent_enabled}, tools={len(tools)}", file=sys.stderr, flush=True)
+
     middlewares = _build_middlewares(config, model_name=model_name, agent_name=agent_name)
 
     # For local models: add middleware that forces tool_choice="required" on early turns
@@ -355,7 +358,7 @@ def make_lead_agent(config: RunnableConfig):
     if is_local_model:
         from deerflow.agents.middlewares.force_tool_middleware import ForceToolMiddleware
         middlewares.append(ForceToolMiddleware(subagent_enabled=subagent_enabled))
-        logger.info("Local model detected — adding ForceToolMiddleware (subagent_enabled=%s)", subagent_enabled)
+        print(f"[DEERFLOW] ForceToolMiddleware added (subagent_enabled={subagent_enabled})", file=sys.stderr, flush=True)
 
     return create_agent(
         model=model,
