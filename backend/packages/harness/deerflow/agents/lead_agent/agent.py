@@ -23,6 +23,24 @@ from deerflow.models import create_chat_model
 logger = logging.getLogger(__name__)
 
 
+def _is_local_model(model_name: str | None) -> bool:
+    """Return True if model_name points to a local Ollama instance."""
+    if not model_name:
+        return False
+    try:
+        app_config = get_app_config()
+        mc = app_config.get_model_config(model_name)
+        if mc:
+            base_url = str(getattr(mc, "base_url", "") or "")
+            if not base_url:
+                extra = getattr(mc, "model_extra", {}) or {}
+                base_url = str(extra.get("base_url", ""))
+            return "11434" in base_url or "ollama" in base_url.lower()
+    except Exception:
+        pass
+    return False
+
+
 def _resolve_model_name(requested_model_name: str | None = None) -> str:
     """Resolve a runtime model name safely, falling back to default if invalid. Returns None if no models are configured."""
     app_config = get_app_config()
@@ -248,8 +266,15 @@ def _build_middlewares(config: RunnableConfig, model_name: str | None, agent_nam
 
     # Add subagent middlewares when enabled
     subagent_enabled = config.get("configurable", {}).get("subagent_enabled", False)
+    is_local = _is_local_model(model_name)
     if subagent_enabled:
         max_concurrent_subagents = config.get("configurable", {}).get("max_concurrent_subagents", 3)
+        # For local models: ForceToolMiddleware MUST run before SubagentExpandMiddleware
+        # so that synthetic task calls (injected when Ollama ignores tool_choice) are
+        # visible to the expansion step.  aafter_model runs in forward list order.
+        if is_local:
+            from deerflow.agents.middlewares.force_tool_middleware import ForceToolMiddleware
+            middlewares.append(ForceToolMiddleware(subagent_enabled=True))
         # Expand single task call → multiple (for small models that only emit 1 tool call)
         middlewares.append(SubagentExpandMiddleware(target_subagents=max_concurrent_subagents))
         # Then truncate if somehow more than max (safety net)
@@ -335,30 +360,12 @@ def make_lead_agent(config: RunnableConfig):
     model = create_chat_model(name=model_name, thinking_enabled=thinking_enabled, reasoning_effort=reasoning_effort)
     tools = get_available_tools(model_name=model_name, groups=agent_config.tool_groups if agent_config else None, subagent_enabled=subagent_enabled)
 
-    # Detect local/Ollama models
-    is_local_model = False
-    try:
-        mc = app_config.get_model_config(model_name)
-        if mc:
-            base_url = str(getattr(mc, "base_url", "") or "")
-            if not base_url:
-                extra = getattr(mc, "model_extra", {}) or {}
-                base_url = str(extra.get("base_url", ""))
-            is_local_model = "11434" in base_url or "ollama" in base_url.lower()
-    except Exception:
-        pass
-
-    import sys
-    print(f"[DEERFLOW] make_lead_agent: model={model_name}, is_local={is_local_model}, subagent={subagent_enabled}, tools={len(tools)}", file=sys.stderr, flush=True)
-
     middlewares = _build_middlewares(config, model_name=model_name, agent_name=agent_name)
 
-    # For local models: add middleware that forces tool_choice="required" on early turns
-    # so small models don't skip tools entirely. After 2 tool-using turns, release the constraint.
-    if is_local_model:
+    # For local models in non-subagent mode: force tool usage on early turns
+    if _is_local_model(model_name) and not subagent_enabled:
         from deerflow.agents.middlewares.force_tool_middleware import ForceToolMiddleware
-        middlewares.append(ForceToolMiddleware(subagent_enabled=subagent_enabled))
-        print(f"[DEERFLOW] ForceToolMiddleware added (subagent_enabled={subagent_enabled})", file=sys.stderr, flush=True)
+        middlewares.append(ForceToolMiddleware(subagent_enabled=False))
 
     return create_agent(
         model=model,

@@ -10,7 +10,6 @@ and a synthesis instruction is injected so the model writes a proper report.
 """
 
 import logging
-import sys
 import uuid
 from collections.abc import Awaitable, Callable
 from typing import override
@@ -18,27 +17,27 @@ from typing import override
 from langchain.agents import AgentState
 from langchain.agents.middleware import AgentMiddleware
 from langchain.agents.middleware.types import ModelCallResult, ModelRequest, ModelResponse
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.runtime import Runtime
 
 logger = logging.getLogger(__name__)
 
-# Synthesis instruction injected after subagent results return.
-# This replaces the missing "reporter node" from DeerFlow v1.
-_SYNTHESIS_INSTRUCTION = SystemMessage(content="""You have received results from your research subagents above.
-Your job now is to SYNTHESIZE these results into a comprehensive, well-structured answer.
+# Minimal system prompt used ONLY during synthesis.  Replaces the full
+# DeerFlow system prompt so the 8B model doesn't get distracted by it.
+_SYNTHESIS_SYSTEM = "You are a research assistant. Synthesize the information below into a clear, well-structured answer."
+
+_SYNTHESIS_INSTRUCTION = SystemMessage(content="""SYNTHESIZE the research results above into a comprehensive answer.
 
 RULES:
-1. Write your answer DIRECTLY as markdown text in your response
-2. DO NOT call any tools — just write the answer
-3. DO NOT write files or reference file paths
-4. DO NOT ask follow-up questions — answer with what you have
-5. Structure your response with clear headings (##), bullet points, and comparisons
-6. Include specific data points, numbers, and examples from the subagent research
-7. If a subagent failed, work with the results you DO have
-8. Keep your response focused and informative — no filler or self-congratulation
+1. Write ONLY about the topic the user asked about — nothing else
+2. Use the ACTUAL data from the research results above
+3. Structure with markdown headings (##), bullet points, and comparisons
+4. Include specific facts, dates, numbers, and names from the results
+5. If a result mentions sources/URLs, include them as citations
+6. Do NOT mention DeerFlow, agents, frameworks, or how this system works
+7. Do NOT make up information that isn't in the results above
 
-Write your synthesis now:""")
+Write your answer now:""")
 
 
 def _has_task_call_since_last_human(messages: list) -> bool:
@@ -59,6 +58,39 @@ def _has_task_call_since_last_human(messages: list) -> bool:
             if tc.get("name") == "task":
                 return True
     return False
+
+
+def _build_synthesis_messages(messages: list) -> list:
+    """Build a trimmed message list for the synthesis call.
+
+    Extracts only the user question and the subagent ToolMessage results,
+    discarding the full conversation history so the 8B model can focus.
+    """
+    # Find the last user question
+    user_msg = None
+    for m in reversed(messages):
+        if isinstance(m, HumanMessage):
+            user_msg = m
+            break
+
+    # Collect subagent results (ToolMessages that follow task calls)
+    tool_results = []
+    for m in messages:
+        if isinstance(m, ToolMessage):
+            content = m.content if isinstance(m.content, str) else str(m.content)
+            if content and len(content) > 20:  # Skip empty/trivial results
+                tool_results.append(content)
+
+    # Build a clean context: user question + concatenated results + synthesis instruction
+    result_text = "\n\n---\n\n".join(
+        f"**Research Result {i+1}:**\n{r}" for i, r in enumerate(tool_results)
+    )
+
+    return [
+        HumanMessage(content=f"My question: {user_msg.content if user_msg else 'Research task'}\n\n"
+                     f"Here are the research results from my subagents:\n\n{result_text}"),
+        _SYNTHESIS_INSTRUCTION,
+    ]
 
 
 def _get_user_query(messages: list) -> str:
@@ -95,7 +127,7 @@ class ForceToolMiddleware(AgentMiddleware[AgentState]):
         super().__init__()
         self.force_turns = force_turns
         self.subagent_enabled = subagent_enabled
-        self._delegation_attempted = False  # Track if we tried to force delegation
+        self._delegation_attempted = False
 
     @override
     async def awrap_model_call(
@@ -112,28 +144,24 @@ class ForceToolMiddleware(AgentMiddleware[AgentState]):
         if self.subagent_enabled:
             if _has_task_call_since_last_human(messages):
                 # SYNTHESIS PHASE: subagents have returned results.
-                print(f"[DEERFLOW] ForceToolMiddleware: SYNTHESIS phase — injecting reporter instruction, stripping tools", file=sys.stderr, flush=True)
+                # Trim context to ONLY what matters: user question + subagent results.
+                # This prevents the 8B model from being distracted by the long system prompt.
+                logger.info("ForceToolMiddleware: SYNTHESIS phase — trimming context for synthesis")
                 self._delegation_attempted = False
-
-                updated_messages = list(messages) + [_SYNTHESIS_INSTRUCTION]
+                synthesis_messages = _build_synthesis_messages(messages)
                 request = request.override(
                     tools=[],
-                    messages=updated_messages,
+                    messages=synthesis_messages,
+                    system_message=_SYNTHESIS_SYSTEM,
                 )
                 return await handler(request)
 
             # DELEGATION PHASE: force model to call the task tool
-            task_tools = [
-                t for t in request.tools
-                if getattr(t, "name", None) == "task"
-            ]
+            task_tools = [t for t in request.tools if getattr(t, "name", None) == "task"]
             if task_tools:
-                print(f"[DEERFLOW] ForceToolMiddleware: DELEGATION phase — forcing task tool only", file=sys.stderr, flush=True)
+                logger.info("ForceToolMiddleware: DELEGATION phase — forcing task tool")
                 self._delegation_attempted = True
-                request = request.override(
-                    tools=task_tools,
-                    tool_choice="required",
-                )
+                request = request.override(tools=task_tools, tool_choice="required")
             else:
                 logger.warning("ForceToolMiddleware: task tool not found in tool list")
                 self._delegation_attempted = True
@@ -159,7 +187,7 @@ class ForceToolMiddleware(AgentMiddleware[AgentState]):
         if not self.subagent_enabled or not self._delegation_attempted:
             return None
 
-        self._delegation_attempted = False  # Reset for next turn
+        self._delegation_attempted = False
 
         messages = state.get("messages", [])
         if not messages:
@@ -169,16 +197,13 @@ class ForceToolMiddleware(AgentMiddleware[AgentState]):
         if not isinstance(last_msg, AIMessage):
             return None
 
-        # Check if model actually produced a tool call
         tool_calls = getattr(last_msg, "tool_calls", None) or []
         if tool_calls:
-            # Model obeyed — SubagentExpandMiddleware will handle expansion
-            return None
+            return None  # Model obeyed — SubagentExpandMiddleware will handle expansion
 
-        # Model ignored tool_choice="required" and produced text only.
-        # Inject a synthetic task call so subagents still fire.
+        # Model ignored tool_choice="required" — inject synthetic task call
         user_query = _get_user_query(messages)
-        print(f"[DEERFLOW] ForceToolMiddleware: model ignored tool_choice! Injecting synthetic task call for: {user_query[:60]}", file=sys.stderr, flush=True)
+        logger.info("ForceToolMiddleware: model ignored tool_choice, injecting synthetic task call")
 
         synthetic_tool_call = {
             "name": "task",
@@ -190,9 +215,8 @@ class ForceToolMiddleware(AgentMiddleware[AgentState]):
             },
         }
 
-        # Replace the last message with one that has the tool call
         updated_msg = last_msg.model_copy(update={
             "tool_calls": [synthetic_tool_call],
-            "content": "",  # Clear text since we're converting to a tool call
+            "content": "",
         })
         return {"messages": [updated_msg]}

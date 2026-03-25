@@ -209,10 +209,17 @@ class SubagentExecutor:
         model_name = _get_model_name(self.config, self.parent_model)
         model = create_chat_model(name=model_name, thinking_enabled=False)
 
+        from deerflow.agents.middlewares.force_tool_middleware import ForceToolMiddleware
         from deerflow.agents.middlewares.tool_error_handling_middleware import build_subagent_runtime_middlewares
 
         # Reuse shared middleware composition with lead agent.
         middlewares = build_subagent_runtime_middlewares(lazy_init=True)
+
+        # Force the FIRST LLM call to use a tool (web_search) so 8B models
+        # don't skip straight to answering from memory.  force_turns=1 means
+        # only the very first model response is forced; after that the model
+        # is free to write its answer.
+        middlewares.append(ForceToolMiddleware(force_turns=1, subagent_enabled=False))
 
         return create_agent(
             model=model,
