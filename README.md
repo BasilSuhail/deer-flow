@@ -15,6 +15,16 @@ cd repo && make docker-stop
 cd repo && make docker-stop && make docker-init && make docker-start
 ```
 
+### Fix Docker Network Conflict
+If `make docker-start` fails with `Pool overlaps with other one on this address space`, run this to clean up stale containers and networks:
+```bash
+docker stop deer-flow-nginx deer-flow-gateway deer-flow-langgraph deer-flow-frontend 2>/dev/null; docker rm deer-flow-nginx deer-flow-gateway deer-flow-langgraph deer-flow-frontend 2>/dev/null; docker network rm docker_deer-flow-dev deer-flow-dev_deer-flow-dev 2>/dev/null; echo "Cleaned up"
+```
+Then start again:
+```bash
+cd repo && make docker-start
+```
+
 ---
 
 # DeerFlow Local Setup Summary
