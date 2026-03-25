@@ -422,9 +422,9 @@ export function InputBox({
           {(["flash", "pro", "ultra"] as const).map((mode) => {
             const isActive = (context.mode ?? "pro") === mode;
             const labels: Record<string, { icon: typeof ZapIcon; label: string }> = {
-              flash: { icon: ZapIcon, label: "Flash" },
-              pro: { icon: GraduationCapIcon, label: "Pro" },
-              ultra: { icon: RocketIcon, label: "Ultra" },
+              flash: { icon: ZapIcon, label: "Just Answer" },
+              pro: { icon: GraduationCapIcon, label: "Think & Plan" },
+              ultra: { icon: RocketIcon, label: "All Agents" },
             };
             const { icon: ModeIcon, label } = labels[mode]!;
             return (
