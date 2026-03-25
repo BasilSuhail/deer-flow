@@ -43,13 +43,18 @@ def _read_subagent_status() -> list[dict[str, Any]]:
             return []
         with open(_STATUS_FILE) as f:
             data = json.load(f)
-        # Only return tasks from the last 5 minutes (avoid stale data)
+        # Only return active tasks or recently completed ones (30s window)
         from datetime import datetime, timedelta
-        cutoff = (datetime.now() - timedelta(minutes=5)).isoformat()
+        cutoff = (datetime.now() - timedelta(seconds=30)).isoformat()
         tasks = []
         for t in data.get("tasks", []):
-            started = t.get("started_at") or t.get("completed_at") or ""
-            if started >= cutoff or t.get("status") in ("pending", "running"):
+            # Always show pending/running tasks
+            if t.get("status") in ("pending", "running"):
+                tasks.append(t)
+                continue
+            # For completed/failed/timed_out: only show if finished within last 30s
+            completed = t.get("completed_at") or ""
+            if completed >= cutoff:
                 tasks.append(t)
         return tasks
     except Exception:

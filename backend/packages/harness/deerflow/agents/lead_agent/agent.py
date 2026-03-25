@@ -8,6 +8,7 @@ from deerflow.agents.lead_agent.prompt import apply_prompt_template
 from deerflow.agents.middlewares.clarification_middleware import ClarificationMiddleware
 from deerflow.agents.middlewares.loop_detection_middleware import LoopDetectionMiddleware
 from deerflow.agents.middlewares.memory_middleware import MemoryMiddleware
+from deerflow.agents.middlewares.subagent_expand_middleware import SubagentExpandMiddleware
 from deerflow.agents.middlewares.subagent_limit_middleware import SubagentLimitMiddleware
 from deerflow.agents.middlewares.title_middleware import TitleMiddleware
 from deerflow.agents.middlewares.todo_middleware import TodoMiddleware
@@ -245,10 +246,13 @@ def _build_middlewares(config: RunnableConfig, model_name: str | None, agent_nam
         from deerflow.agents.middlewares.deferred_tool_filter_middleware import DeferredToolFilterMiddleware
         middlewares.append(DeferredToolFilterMiddleware())
 
-    # Add SubagentLimitMiddleware to truncate excess parallel task calls
+    # Add subagent middlewares when enabled
     subagent_enabled = config.get("configurable", {}).get("subagent_enabled", False)
     if subagent_enabled:
         max_concurrent_subagents = config.get("configurable", {}).get("max_concurrent_subagents", 3)
+        # Expand single task call → multiple (for small models that only emit 1 tool call)
+        middlewares.append(SubagentExpandMiddleware(target_subagents=max_concurrent_subagents))
+        # Then truncate if somehow more than max (safety net)
         middlewares.append(SubagentLimitMiddleware(max_concurrent=max_concurrent_subagents))
 
     # LoopDetectionMiddleware — detect and break repetitive tool call loops
@@ -350,8 +354,8 @@ def make_lead_agent(config: RunnableConfig):
     # so small models don't skip tools entirely. After 2 tool-using turns, release the constraint.
     if is_local_model:
         from deerflow.agents.middlewares.force_tool_middleware import ForceToolMiddleware
-        middlewares.append(ForceToolMiddleware())
-        logger.info("Local model detected — adding ForceToolMiddleware to ensure tool usage")
+        middlewares.append(ForceToolMiddleware(subagent_enabled=subagent_enabled))
+        logger.info("Local model detected — adding ForceToolMiddleware (subagent_enabled=%s)", subagent_enabled)
 
     return create_agent(
         model=model,
