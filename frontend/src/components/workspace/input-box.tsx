@@ -418,6 +418,34 @@ export function InputBox({
           <AddAttachmentsButton className="px-2!" />
         </PromptInputTools>
         <PromptInputTools>
+          {/* Mode selector buttons */}
+          {(["flash", "pro", "ultra"] as const).map((mode) => {
+            const isActive = (context.mode ?? "pro") === mode;
+            const labels: Record<string, { icon: typeof ZapIcon; label: string }> = {
+              flash: { icon: ZapIcon, label: "Just Answer" },
+              pro: { icon: GraduationCapIcon, label: "Think & Plan" },
+              ultra: { icon: RocketIcon, label: "All Agents" },
+            };
+            const { icon: ModeIcon, label } = labels[mode]!;
+            return (
+              <Button
+                key={mode}
+                type="button"
+                variant={isActive ? "secondary" : "ghost"}
+                size="sm"
+                className={cn(
+                  "h-7 gap-1 rounded-full px-2.5 text-xs font-normal",
+                  isActive && "font-medium",
+                )}
+                onClick={() => handleModeSelect(mode)}
+              >
+                <ModeIcon className="size-3" />
+                {label}
+              </Button>
+            );
+          })}
+        </PromptInputTools>
+        <PromptInputTools>
           <ModelSelector
             open={modelDialogOpen}
             onOpenChange={setModelDialogOpen}

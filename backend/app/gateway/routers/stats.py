@@ -57,16 +57,36 @@ def _read_subagent_status() -> list[dict[str, Any]]:
         return []
 
 
+def _get_host_ram_total() -> int | None:
+    """Try to get the actual host RAM total, not the Docker container limit."""
+    env_ram = os.environ.get("HOST_RAM_TOTAL_BYTES")
+    if env_ram:
+        try:
+            return int(env_ram)
+        except ValueError:
+            pass
+    return None
+
+
 @router.get("")
 async def get_stats():
     # --- System RAM ---
     vm = psutil.virtual_memory()
-    system_ram = {
-        "total": vm.total,
-        "used": vm.used,
-        "percent": vm.percent,
-        "available": vm.available,
-    }
+    host_ram = _get_host_ram_total()
+    if host_ram and host_ram > vm.total:
+        system_ram = {
+            "total": host_ram,
+            "used": vm.used,
+            "percent": round(vm.used / host_ram * 100, 1),
+            "available": host_ram - vm.used,
+        }
+    else:
+        system_ram = {
+            "total": vm.total,
+            "used": vm.used,
+            "percent": vm.percent,
+            "available": vm.available,
+        }
 
     # --- Ollama model VRAM usage ---
     ollama_url = _get_ollama_url()

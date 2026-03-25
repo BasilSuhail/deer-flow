@@ -327,11 +327,36 @@ def make_lead_agent(config: RunnableConfig):
             state_schema=ThreadState,
         )
 
-    # Default lead agent (unchanged behavior)
+    # Default lead agent
+    model = create_chat_model(name=model_name, thinking_enabled=thinking_enabled, reasoning_effort=reasoning_effort)
+    tools = get_available_tools(model_name=model_name, groups=agent_config.tool_groups if agent_config else None, subagent_enabled=subagent_enabled)
+
+    # Detect local/Ollama models
+    is_local_model = False
+    try:
+        mc = app_config.get_model_config(model_name)
+        if mc:
+            base_url = str(getattr(mc, "base_url", "") or "")
+            if not base_url:
+                extra = getattr(mc, "model_extra", {}) or {}
+                base_url = str(extra.get("base_url", ""))
+            is_local_model = "11434" in base_url or "ollama" in base_url.lower()
+    except Exception:
+        pass
+
+    middlewares = _build_middlewares(config, model_name=model_name, agent_name=agent_name)
+
+    # For local models: add middleware that forces tool_choice="required" on early turns
+    # so small models don't skip tools entirely. After 2 tool-using turns, release the constraint.
+    if is_local_model:
+        from deerflow.agents.middlewares.force_tool_middleware import ForceToolMiddleware
+        middlewares.append(ForceToolMiddleware())
+        logger.info("Local model detected — adding ForceToolMiddleware to ensure tool usage")
+
     return create_agent(
-        model=create_chat_model(name=model_name, thinking_enabled=thinking_enabled, reasoning_effort=reasoning_effort),
-        tools=get_available_tools(model_name=model_name, groups=agent_config.tool_groups if agent_config else None, subagent_enabled=subagent_enabled),
-        middleware=_build_middlewares(config, model_name=model_name, agent_name=agent_name),
+        model=model,
+        tools=tools,
+        middleware=middlewares,
         system_prompt=apply_prompt_template(subagent_enabled=subagent_enabled, max_concurrent_subagents=max_concurrent_subagents, agent_name=agent_name),
         state_schema=ThreadState,
     )
