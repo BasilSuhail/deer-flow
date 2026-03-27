@@ -18,7 +18,7 @@ from langchain.tools import BaseTool
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
-from deerflow.agents.thread_state import SandboxState, ThreadDataState, ThreadState
+from deerflow.agents.thread_state import ThreadState
 from deerflow.models import create_chat_model
 from deerflow.subagents.config import SubagentConfig
 
@@ -171,26 +171,13 @@ class SubagentExecutor:
         config: SubagentConfig,
         tools: list[BaseTool],
         parent_model: str | None = None,
-        sandbox_state: SandboxState | None = None,
-        thread_data: ThreadDataState | None = None,
         thread_id: str | None = None,
         trace_id: str | None = None,
+        **_kwargs,
     ):
-        """Initialize the executor.
-
-        Args:
-            config: Subagent configuration.
-            tools: List of all available tools (will be filtered).
-            parent_model: The parent agent's model name for inheritance.
-            sandbox_state: Sandbox state from parent agent.
-            thread_data: Thread data from parent agent.
-            thread_id: Thread ID for sandbox operations.
-            trace_id: Trace ID from parent for distributed tracing.
-        """
+        """Initialize the executor."""
         self.config = config
         self.parent_model = parent_model
-        self.sandbox_state = sandbox_state
-        self.thread_data = thread_data
         self.thread_id = thread_id
         # Generate trace_id if not provided (for top-level calls)
         self.trace_id = trace_id or str(uuid.uuid4())[:8]
@@ -238,17 +225,9 @@ class SubagentExecutor:
         Returns:
             Initial state dictionary.
         """
-        state: dict[str, Any] = {
+        return {
             "messages": [HumanMessage(content=task)],
         }
-
-        # Pass through sandbox and thread data from parent
-        if self.sandbox_state is not None:
-            state["sandbox"] = self.sandbox_state
-        if self.thread_data is not None:
-            state["thread_data"] = self.thread_data
-
-        return state
 
     async def _aexecute(self, task: str, result_holder: SubagentResult | None = None) -> SubagentResult:
         """Execute a task asynchronously.
@@ -273,6 +252,32 @@ class SubagentExecutor:
                 started_at=datetime.now(),
             )
 
+        # Retry loop: Ollama can reject concurrent connections when 3 subagents
+        # hit it simultaneously.  A short backoff + retry recovers gracefully.
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            try:
+                return await self._aexecute_once(task, result)
+            except Exception as e:
+                is_connection_error = "Connection error" in str(e) or "Event loop is closed" in str(e)
+                if is_connection_error and attempt < max_retries:
+                    wait = 2 * (attempt + 1)
+                    logger.warning(f"[trace={self.trace_id}] Subagent {self.config.name} connection error (attempt {attempt + 1}/{max_retries + 1}), retrying in {wait}s: {e}")
+                    await asyncio.sleep(wait)
+                    # Reset ai_messages for retry
+                    result.ai_messages = []
+                    continue
+                # Final attempt or non-connection error — let it fall through
+                logger.exception(f"[trace={self.trace_id}] Subagent {self.config.name} async execution failed")
+                result.status = SubagentStatus.FAILED
+                result.error = str(e)
+                result.completed_at = datetime.now()
+                return result
+
+        return result  # Should not reach here, but just in case
+
+    async def _aexecute_once(self, task: str, result: SubagentResult) -> SubagentResult:
+        """Single execution attempt (called by _aexecute with retry logic)."""
         try:
             agent = self._create_agent()
             state = self._build_initial_state(task)
@@ -389,14 +394,10 @@ class SubagentExecutor:
 
             result.status = SubagentStatus.COMPLETED
             result.completed_at = datetime.now()
+            return result
 
-        except Exception as e:
-            logger.exception(f"[trace={self.trace_id}] Subagent {self.config.name} async execution failed")
-            result.status = SubagentStatus.FAILED
-            result.error = str(e)
-            result.completed_at = datetime.now()
-
-        return result
+        except Exception:
+            raise  # Let _aexecute retry logic handle it
 
     def execute(self, task: str, result_holder: SubagentResult | None = None) -> SubagentResult:
         """Execute a task synchronously (wrapper around async execution).
@@ -547,6 +548,18 @@ def list_background_tasks() -> list[SubagentResult]:
     """
     with _background_tasks_lock:
         return list(_background_tasks.values())
+
+
+def clear_all_background_tasks() -> None:
+    """Clear all background tasks and write an empty status file.
+
+    Called at the start of each new query to remove stale state from
+    previous runs so the dashboard shows a clean slate.
+    """
+    with _background_tasks_lock:
+        _background_tasks.clear()
+    _write_status_file()
+    logger.info("Cleared all background tasks")
 
 
 def cleanup_background_task(task_id: str) -> None:

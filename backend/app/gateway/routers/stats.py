@@ -1,145 +1,135 @@
+"""System stats endpoint for the frontend dashboard."""
+
 import json
 import logging
 import os
-import urllib.request
-from typing import Any
+import platform
 
-import psutil
+import httpx
 from fastapi import APIRouter
 
 from deerflow.config.app_config import get_app_config
 
-router = APIRouter(prefix="/api/stats", tags=["health"])
-
 logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/api/stats", tags=["stats"])
 
-# Shared status file written by LangGraph subagent executor
 _STATUS_FILE = os.environ.get("SUBAGENT_STATUS_FILE", "/app/logs/subagent_status.json")
+_OLLAMA_BASE = os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
 
 
-def _get_ollama_url() -> str:
-    """Get the Ollama API base URL from the first configured model, or fall back to localhost."""
+def _get_system_ram() -> dict:
+    """Get system RAM usage."""
     try:
-        config = get_app_config()
-        for m in config.models:
-            base_url = getattr(m, "base_url", None)
-            if not base_url:
-                extra = getattr(m, "model_extra", {}) or {}
-                base_url = extra.get("base_url", "")
-            if base_url and "11434" in str(base_url):
-                url = str(base_url).rstrip("/")
-                if url.endswith("/v1"):
-                    url = url[:-3]
-                return url
+        import resource
+        # Fallback: use /proc/meminfo on Linux, sysctl on macOS
+        if platform.system() == "Darwin":
+            import subprocess
+            result = subprocess.run(
+                ["sysctl", "-n", "hw.memsize"],
+                capture_output=True, text=True, timeout=2,
+            )
+            total = int(result.stdout.strip())
+            # macOS doesn't expose free RAM easily; estimate from vm_stat
+            result2 = subprocess.run(
+                ["vm_stat"], capture_output=True, text=True, timeout=2,
+            )
+            lines = result2.stdout.strip().split("\n")
+            page_size = 16384  # default on Apple Silicon
+            free_pages = 0
+            for line in lines:
+                if "free" in line.lower() and ":" in line:
+                    parts = line.split(":")
+                    if len(parts) == 2:
+                        val = parts[1].strip().rstrip(".")
+                        try:
+                            free_pages = int(val)
+                        except ValueError:
+                            pass
+                        break
+            free = free_pages * page_size
+            used = total - free
+            percent = round((used / total) * 100, 1) if total > 0 else 0
+            return {"total": total, "used": used, "free": free, "percent": percent}
+        else:
+            # Linux: read /proc/meminfo
+            with open("/proc/meminfo") as f:
+                info = {}
+                for line in f:
+                    parts = line.split(":")
+                    if len(parts) == 2:
+                        key = parts[0].strip()
+                        val = parts[1].strip().split()[0]
+                        info[key] = int(val) * 1024  # Convert kB to bytes
+            total = info.get("MemTotal", 0)
+            available = info.get("MemAvailable", 0)
+            used = total - available
+            percent = round((used / total) * 100, 1) if total > 0 else 0
+            return {"total": total, "used": used, "free": available, "percent": percent}
     except Exception:
-        pass
-    return "http://localhost:11434"
+        logger.debug("Failed to get system RAM", exc_info=True)
+        return {"total": 0, "used": 0, "free": 0, "percent": 0}
 
 
-def _read_subagent_status() -> list[dict[str, Any]]:
-    """Read subagent status from shared file written by LangGraph executor."""
+async def _get_ollama_status() -> dict:
+    """Check Ollama connectivity and running models."""
     try:
-        if not os.path.exists(_STATUS_FILE):
-            return []
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            # Check if Ollama is reachable
+            resp = await client.get(f"{_OLLAMA_BASE}/api/tags")
+            if resp.status_code != 200:
+                return {"reachable": False, "models": [], "total_vram_used": 0}
+
+            # Get running models (loaded in memory)
+            ps_resp = await client.get(f"{_OLLAMA_BASE}/api/ps")
+            models = []
+            total_vram = 0
+            if ps_resp.status_code == 200:
+                data = ps_resp.json()
+                for m in data.get("models", []):
+                    size_vram = m.get("size_vram", 0)
+                    total_vram += size_vram
+                    models.append({
+                        "name": m.get("name", ""),
+                        "size_vram": size_vram,
+                        "size": m.get("size", 0),
+                    })
+
+            return {"reachable": True, "models": models, "total_vram_used": total_vram}
+    except Exception:
+        return {"reachable": False, "models": [], "total_vram_used": 0}
+
+
+def _get_subagent_status() -> list:
+    """Read subagent status from shared file."""
+    try:
         with open(_STATUS_FILE) as f:
             data = json.load(f)
-        # Show active tasks + recently completed ones (60s window)
-        from datetime import datetime, timedelta
-        cutoff = (datetime.now() - timedelta(seconds=60)).isoformat()
-        tasks = []
-        for t in data.get("tasks", []):
-            # Always show pending/running tasks
-            if t.get("status") in ("pending", "running"):
-                tasks.append(t)
-                continue
-            # For completed/failed/timed_out: only show if finished within last 30s
-            completed = t.get("completed_at") or ""
-            if completed >= cutoff:
-                tasks.append(t)
-        return tasks
+            return data.get("tasks", [])
     except Exception:
-        logger.debug("Failed to read subagent status file", exc_info=True)
         return []
 
 
-def _get_host_ram_total() -> int | None:
-    """Try to get the actual host RAM total, not the Docker container limit."""
-    env_ram = os.environ.get("HOST_RAM_TOTAL_BYTES")
-    if env_ram:
-        try:
-            return int(env_ram)
-        except ValueError:
-            pass
-    return None
-
-
 @router.get("")
-async def get_stats():
-    # --- System RAM ---
-    vm = psutil.virtual_memory()
-    host_ram = _get_host_ram_total()
-    if host_ram and host_ram > vm.total:
-        system_ram = {
-            "total": host_ram,
-            "used": vm.used,
-            "percent": round(vm.used / host_ram * 100, 1),
-            "available": host_ram - vm.used,
+async def get_stats() -> dict:
+    """Return system stats for the frontend dashboard."""
+    app_config = get_app_config()
+
+    configured_models = [
+        {
+            "name": m.name,
+            "display_name": m.display_name or m.name,
+            "model": m.model,
         }
-    else:
-        system_ram = {
-            "total": vm.total,
-            "used": vm.used,
-            "percent": vm.percent,
-            "available": vm.available,
-        }
+        for m in app_config.models
+    ]
 
-    # --- Ollama model VRAM usage ---
-    ollama_url = _get_ollama_url()
-    ollama_models: list[dict[str, Any]] = []
-    total_vram_used = 0
-    ollama_reachable = False
-
-    try:
-        req = urllib.request.Request(f"{ollama_url}/api/ps")
-        with urllib.request.urlopen(req, timeout=3.0) as response:
-            data = json.loads(response.read().decode())
-            ollama_reachable = True
-            for m in data.get("models", []):
-                vram = m.get("size_vram", 0) or m.get("size", 0)
-                total_vram_used += vram
-                ollama_models.append({
-                    "name": m.get("name", "unknown"),
-                    "size": m.get("size", 0),
-                    "size_vram": vram,
-                    "expires_at": m.get("expires_at", ""),
-                })
-    except Exception as e:
-        logger.debug(f"Could not reach Ollama at {ollama_url}: {e}")
-
-    # --- Configured models (with role info) ---
-    configured_models: list[dict[str, str]] = []
-    try:
-        config = get_app_config()
-        for m in config.models:
-            configured_models.append({
-                "name": m.name,
-                "display_name": getattr(m, "display_name", m.name),
-                "model": m.model,
-            })
-    except Exception:
-        pass
-
-    # --- Subagent status (from shared file) ---
-    subagents = _read_subagent_status()
+    ollama = await _get_ollama_status()
+    ram = _get_system_ram()
+    subagents = _get_subagent_status()
 
     return {
-        "system_ram": system_ram,
-        "ollama": {
-            "reachable": ollama_reachable,
-            "url": ollama_url,
-            "models": ollama_models,
-            "total_vram_used": total_vram_used,
-        },
+        "system_ram": ram,
+        "ollama": ollama,
         "configured_models": configured_models,
         "subagents": subagents,
     }

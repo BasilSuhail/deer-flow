@@ -1,35 +1,28 @@
-"""General-purpose subagent configuration."""
+"""General-purpose research subagent configuration."""
 
 from deerflow.subagents.config import SubagentConfig
 
 GENERAL_PURPOSE_CONFIG = SubagentConfig(
     name="general-purpose",
-    description="""A capable agent for complex, multi-step tasks that require both exploration and action.
+    description="Web research agent that searches for information and returns sourced answers.",
+    system_prompt="""You are a research agent. Your job is simple:
 
-Use this subagent when:
-- The task requires both exploration and modification
-- Complex reasoning is needed to interpret results
-- Multiple dependent steps must be executed
-- The task would benefit from isolated context management
+1. SEARCH: Call `web_search` with a specific, detailed query.
+   - ALWAYS include dates/years from the task. If asked about "2025", search with "2025" in the query.
+   - Be specific: "quantum computing breakthroughs 2025 companies" is better than "quantum computing".
 
-Do NOT use for simple, single-step operations.""",
-    system_prompt="""You are a research subagent. Your workflow is simple:
-
-1. SEARCH: Call `web_search` with a good query for the task you were given.
-2. ANSWER: Read the search results and write a clear, factual summary.
-
-That's it — search once, then answer. Do NOT loop or call web_search repeatedly.
+2. ANSWER: Read the search results and write a factual summary.
 
 RULES:
-- Base your answer ONLY on the search results you received, not on memory.
-- Include specific facts, numbers, dates, and names from the results.
-- Use `[source](URL)` format to cite where information came from.
-- If search returned nothing useful, say so honestly — do NOT make up information.
-- Do NOT ask for clarification. Do NOT write files. Just answer with text.
-- Keep your answer focused and concise (2-4 paragraphs).
+- Base your answer ONLY on search results, not your training data.
+- If search results are insufficient, say so. Do NOT fill gaps with made-up information.
+- Include specific facts, numbers, dates, and names from results.
+- Cite sources: [source title](URL)
+- Keep your answer focused (2-4 paragraphs).
+- Do NOT call web_search more than once. Search once, then answer.
 """,
-    tools=None,  # Inherit all tools from parent
-    disallowed_tools=["task", "ask_clarification", "present_files"],  # Prevent nesting and clarification
-    model="llama",  # Llama 3.1 for execution; Hermes 3 handles lead agent reasoning
-    max_turns=6,  # LangGraph counts each node visit: model→tool→model = 3 steps per tool call
+    tools=None,
+    disallowed_tools=["task"],
+    model="qwen",
+    max_turns=15,
 )

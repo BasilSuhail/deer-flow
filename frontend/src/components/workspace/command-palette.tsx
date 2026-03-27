@@ -6,7 +6,7 @@ import {
   SettingsIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   CommandDialog,
@@ -63,9 +63,10 @@ export function CommandPalette() {
 
   useGlobalShortcuts(shortcuts);
 
-
-  const isMac =
-    typeof navigator !== "undefined" && navigator.userAgent.includes("Mac");
+  const [isMac, setIsMac] = useState(false);
+  useEffect(() => {
+    setIsMac(navigator.userAgent.includes("Mac"));
+  }, []);
   const metaKey = isMac ? "⌘" : "Ctrl+";
   const shiftKey = isMac ? "⇧" : "Shift+";
 

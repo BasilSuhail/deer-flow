@@ -1,5 +1,16 @@
 import type { AIMessage } from "@langchain/langgraph-sdk";
 
+export interface ResearchScore {
+  agent_index: number;
+  accuracy: number;
+  completeness: number;
+  source_quality: number;
+  clarity: number;
+  cross_validation_bonus: number;
+  weighted_total: number;
+  details: Record<string, unknown>;
+}
+
 export interface Subtask {
   id: string;
   status: "in_progress" | "completed" | "failed";
@@ -9,4 +20,5 @@ export interface Subtask {
   prompt: string;
   result?: string;
   error?: string;
+  score?: ResearchScore;
 }

@@ -26,6 +26,7 @@ import { StreamingIndicator } from "../streaming-indicator";
 import { MarkdownContent } from "./markdown-content";
 import { MessageGroup } from "./message-group";
 import { MessageListItem } from "./message-list-item";
+import { ResearchScores } from "./research-scores";
 import { MessageListSkeleton } from "./skeleton";
 import { SubtaskCard } from "./subtask-card";
 
@@ -187,6 +188,7 @@ export function MessageList({
                 className="relative z-1 flex flex-col gap-2"
               >
                 {results}
+                <ResearchScores className="mt-2" />
               </div>
             );
           }

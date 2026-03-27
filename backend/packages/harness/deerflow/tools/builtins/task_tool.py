@@ -10,7 +10,6 @@ from langchain.tools import InjectedToolCallId, ToolRuntime, tool
 from langgraph.config import get_stream_writer
 from langgraph.typing import ContextT
 
-from deerflow.agents.lead_agent.prompt import get_skills_prompt_section
 from deerflow.agents.thread_state import ThreadState
 from deerflow.subagents import SubagentExecutor, get_subagent_config
 from deerflow.subagents.executor import SubagentStatus, cleanup_background_task, get_background_task_result
@@ -23,7 +22,7 @@ def task_tool(
     runtime: ToolRuntime[ContextT, ThreadState],
     description: str,
     prompt: str,
-    subagent_type: Literal["general-purpose", "bash"],
+    subagent_type: Literal["general-purpose"],
     tool_call_id: Annotated[str, InjectedToolCallId],
     max_turns: int | None = None,
 ) -> str:
@@ -60,15 +59,9 @@ def task_tool(
     # Get subagent configuration
     config = get_subagent_config(subagent_type)
     if config is None:
-        return f"Error: Unknown subagent type '{subagent_type}'. Available: general-purpose, bash"
+        return f"Error: Unknown subagent type '{subagent_type}'. Available: general-purpose"
 
-    # Build config overrides
     overrides: dict = {}
-
-    skills_section = get_skills_prompt_section()
-    if skills_section:
-        overrides["system_prompt"] = config.system_prompt + "\n\n" + skills_section
-
     if max_turns is not None:
         overrides["max_turns"] = max_turns
 
@@ -76,38 +69,24 @@ def task_tool(
         config = replace(config, **overrides)
 
     # Extract parent context from runtime
-    sandbox_state = None
-    thread_data = None
     thread_id = None
     parent_model = None
     trace_id = None
 
     if runtime is not None:
-        sandbox_state = runtime.state.get("sandbox")
-        thread_data = runtime.state.get("thread_data")
         thread_id = runtime.context.get("thread_id")
-
-        # Try to get parent model from configurable
         metadata = runtime.config.get("metadata", {})
         parent_model = metadata.get("model_name")
-
-        # Get or generate trace_id for distributed tracing
         trace_id = metadata.get("trace_id") or str(uuid.uuid4())[:8]
 
-    # Get available tools (excluding task tool to prevent nesting)
-    # Lazy import to avoid circular dependency
     from deerflow.tools import get_available_tools
 
-    # Subagents should not have subagent tools enabled (prevent recursive nesting)
-    tools = get_available_tools(model_name=parent_model, subagent_enabled=False)
+    tools = get_available_tools(subagent_enabled=False)
 
-    # Create executor
     executor = SubagentExecutor(
         config=config,
         tools=tools,
         parent_model=parent_model,
-        sandbox_state=sandbox_state,
-        thread_data=thread_data,
         thread_id=thread_id,
         trace_id=trace_id,
     )

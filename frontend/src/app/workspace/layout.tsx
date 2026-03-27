@@ -30,6 +30,10 @@ export default function WorkspaceLayout({
     },
     [setSettings],
   );
+  // Defer Radix Dialog components until after hydration to prevent ID mismatches
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <SidebarProvider
@@ -40,7 +44,7 @@ export default function WorkspaceLayout({
         <WorkspaceSidebar />
         <SidebarInset className="min-w-0">{children}</SidebarInset>
       </SidebarProvider>
-      <CommandPalette />
+      {mounted && <CommandPalette />}
       <Toaster position="top-center" />
     </QueryClientProvider>
   );

@@ -12,7 +12,7 @@ import { getBackendBaseURL } from "../config";
 import { useI18n } from "../i18n/hooks";
 import type { FileInMessage } from "../messages/utils";
 import type { LocalSettings } from "../settings";
-import { useUpdateSubtask } from "../tasks/context";
+import { useSubtaskContext, useUpdateSubtask } from "../tasks/context";
 import type { UploadedFileInfo } from "../uploads";
 import { uploadFiles } from "../uploads";
 
@@ -109,6 +109,7 @@ export function useThreadStream({
 
   const queryClient = useQueryClient();
   const updateSubtask = useUpdateSubtask();
+  const { setScores } = useSubtaskContext();
 
   const thread = useStream<AgentThreadState>({
     client: getAPIClient(isMock),
@@ -158,18 +159,30 @@ export function useThreadStream({
       }
     },
     onCustomEvent(event: unknown) {
-      if (
-        typeof event === "object" &&
-        event !== null &&
-        "type" in event &&
-        event.type === "task_running"
-      ) {
+      if (typeof event !== "object" || event === null || !("type" in event)) return;
+
+      if (event.type === "task_running") {
         const e = event as {
           type: "task_running";
           task_id: string;
           message: AIMessage;
         };
         updateSubtask({ id: e.task_id, latestMessage: e.message });
+      } else if (event.type === "research_scores") {
+        const e = event as {
+          type: "research_scores";
+          scores: Array<{
+            agent_index: number;
+            accuracy: number;
+            completeness: number;
+            source_quality: number;
+            clarity: number;
+            cross_validation_bonus: number;
+            weighted_total: number;
+            details: Record<string, unknown>;
+          }>;
+        };
+        setScores(e.scores);
       }
     },
     onError(error) {

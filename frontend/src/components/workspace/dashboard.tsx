@@ -12,8 +12,10 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   ClockIcon,
+  FlaskConicalIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -76,9 +78,35 @@ const MODEL_ROLES: { label: string; icon: typeof BrainIcon; description: string 
   { label: "Subagent", icon: ZapIcon, description: "Research, execution & web search" },
 ];
 
+const SCORE_LABELS = ["General", "Technical", "Community"];
+
+function ScoreBar({ value, color }: { value: number; color: string }) {
+  return (
+    <div className="w-full bg-secondary rounded-full h-1">
+      <div
+        className={`${color} h-1 rounded-full transition-all duration-500`}
+        style={{ width: `${Math.min(value, 100)}%` }}
+      />
+    </div>
+  );
+}
+
 export function Dashboard() {
+  const pathname = usePathname();
   const [stats, setStats] = useState<any>(null);
+  const [scores, setScores] = useState<any>(null);
   const [error, setError] = useState(false);
+  const prevPathRef = useRef(pathname);
+
+  // Clear stale scores and subagent data when navigating to a different chat
+  useEffect(() => {
+    if (pathname !== prevPathRef.current) {
+      prevPathRef.current = pathname;
+      setScores(null);
+      // Reset subagents in stats to show idle immediately
+      setStats((prev: any) => prev ? { ...prev, subagents: [] } : prev);
+    }
+  }, [pathname]);
 
   useEffect(() => {
     const fetchStats = () => {
@@ -92,6 +120,14 @@ export function Dashboard() {
           setError(false);
         })
         .catch(() => setError(true));
+
+      fetch("/api/threads/research-scores")
+        .then((res) => res.ok ? res.json() : null)
+        .then((data) => {
+          if (data?.scores?.length) setScores(data);
+          else setScores(null);
+        })
+        .catch(() => {});
     };
     fetchStats();
     const interval = setInterval(fetchStats, 2000);
@@ -292,6 +328,56 @@ export function Dashboard() {
           })}
         </div>
       </section>
+
+      {/* Cross-Validation Scores */}
+      {scores?.scores?.length > 0 && (
+        <section>
+          <div className="flex items-center gap-1.5 mb-2 font-medium text-foreground">
+            <FlaskConicalIcon className="size-3.5" />
+            <span>Scores</span>
+            <span className="ml-auto text-muted-foreground font-normal">
+              Best: {Math.round(scores.scores[0]?.weighted_total ?? 0)}/100
+            </span>
+          </div>
+          <div className="space-y-2">
+            {scores.scores.map((s: any, i: number) => (
+              <div key={i} className="rounded-md p-2 bg-secondary/20 border border-transparent">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-foreground">
+                    {SCORE_LABELS[s.agent_index] ?? `Agent ${s.agent_index + 1}`}
+                  </span>
+                  <span className={`font-mono font-medium ${
+                    s.weighted_total >= 50 ? "text-green-500" :
+                    s.weighted_total >= 30 ? "text-yellow-500" : "text-red-400"
+                  }`}>
+                    {Math.round(s.weighted_total)}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground w-14">Accuracy</span>
+                    <ScoreBar value={s.accuracy} color="bg-emerald-500" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground w-14">Sources</span>
+                    <ScoreBar value={s.source_quality} color="bg-violet-500" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground w-14">Clarity</span>
+                    <ScoreBar value={s.clarity} color="bg-amber-500" />
+                  </div>
+                </div>
+                {s.cross_validation_bonus > 0 && (
+                  <div className="text-muted-foreground mt-1 flex items-center gap-1">
+                    <CheckCircleIcon className="size-2.5 text-emerald-500" />
+                    +{s.cross_validation_bonus.toFixed(1)} cross-validated
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
