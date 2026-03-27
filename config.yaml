@@ -1,0 +1,43 @@
+# Deep Research Engine Configuration
+config_version: 4
+
+models:
+  - name: qwen
+    display_name: Qwen 3.5 9B
+    use: langchain_openai:ChatOpenAI
+    model: qwen3.5:9b-q4_K_M
+    api_key: "ollama"
+    base_url: http://host.docker.internal:11434/v1
+    temperature: 0.3
+    max_tokens: 4096
+
+tool_groups:
+  - name: web
+
+tools:
+  - name: web_search
+    group: web
+    use: deerflow.community.duckduckgo.tools:web_search_tool
+    max_results: 8
+
+  - name: web_fetch
+    group: web
+    use: deerflow.community.duckduckgo.tools:web_fetch_tool
+    timeout: 10
+
+subagents:
+  enabled: true
+
+# ============================================================================
+# Sandbox Configuration
+# ============================================================================
+# Choose between local sandbox (direct execution) or Docker-based AIO sandbox
+
+# Local Sandbox (Default)
+# Executes commands directly on the host machine for restricted environments
+sandbox:
+  use: deerflow.sandbox.local:LocalSandboxProvider
+
+checkpointer:
+  type: sqlite
+  connection_string: checkpoints.db
