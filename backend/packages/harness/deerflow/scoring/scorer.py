@@ -81,9 +81,13 @@ def _extract_numbers(text: str) -> list[str]:
 
 def _extract_named_entities(text: str) -> set[str]:
     """Extract capitalized phrases that look like proper nouns / names."""
-    # Match 1-3 capitalized words in sequence (likely names, companies, products)
+    # Match 1-3 Title-Case words in sequence (names, companies, products)
     matches = re.findall(r'\b(?:[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b', text)
-    return {m.strip() for m in matches if len(m) > 2}
+    entities = {m.strip() for m in matches if len(m) > 2}
+    # Also match all-caps acronyms (AI, USA, GPT, API, LLM, etc.)
+    acronyms = re.findall(r'\b[A-Z]{2,6}\b', text)
+    entities.update(acronyms)
+    return entities
 
 
 def _count_paragraphs(text: str) -> int:
