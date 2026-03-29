@@ -259,7 +259,18 @@ class SubagentExecutor:
             try:
                 return await self._aexecute_once(task, result)
             except Exception as e:
-                is_connection_error = "Connection error" in str(e) or "Event loop is closed" in str(e)
+                error_str = str(e)
+                is_connection_error = (
+                    isinstance(e, (ConnectionError, OSError, TimeoutError)) or
+                    any(phrase in error_str for phrase in (
+                        "Connection error",
+                        "Connection refused",
+                        "Connection reset",
+                        "Event loop is closed",
+                        "Cannot connect to host",
+                        "Failed to establish a new connection",
+                    ))
+                )
                 if is_connection_error and attempt < max_retries:
                     wait = 2 * (attempt + 1)
                     logger.warning(f"[trace={self.trace_id}] Subagent {self.config.name} connection error (attempt {attempt + 1}/{max_retries + 1}), retrying in {wait}s: {e}")
