@@ -272,8 +272,15 @@ class ForceToolMiddleware(AgentMiddleware[AgentState]):
                         logger.warning("ForceToolMiddleware: SYNTHESIS returned empty — falling back to best subagent result")
                         if tool_results and scores:
                             best_idx = scores[0].agent_index
-                            if best_idx < len(tool_results):
+                            # Guard: agent_index must be a valid index into tool_results
+                            if 0 <= best_idx < len(tool_results):
                                 msg.content = _strip_think_tags(tool_results[best_idx])
+                            elif tool_results:
+                                # agent_index out of range — just use the first available result
+                                msg.content = _strip_think_tags(tool_results[0])
+                        if not msg.content or (isinstance(msg.content, str) and len(msg.content.strip()) == 0):
+                            # Everything failed — give user something useful rather than blank
+                            msg.content = "Research completed but synthesis failed. Please try again."
                     logger.info(
                         "ForceToolMiddleware: SYNTHESIS msg length=%d, has_tool_calls=%s",
                         len(msg.content) if isinstance(msg.content, str) else 0,
