@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 from ddgs import DDGS
@@ -7,7 +8,7 @@ from deerflow.config import get_app_config
 
 
 @tool("web_search", parse_docstring=True)
-def web_search_tool(query: str) -> str:
+async def web_search_tool(query: str) -> str:
     """Search the web.
 
     Args:
@@ -19,7 +20,11 @@ def web_search_tool(query: str) -> str:
         max_results = config.model_extra.get("max_results")
 
     try:
-        results = DDGS().text(query, max_results=max_results)
+        def _search():
+            with DDGS() as ddgs:
+                return list(ddgs.text(query, max_results=max_results))
+
+        results = await asyncio.to_thread(_search)
         normalized_results = [
             {
                 "title": result.get("title", ""),
@@ -33,7 +38,7 @@ def web_search_tool(query: str) -> str:
         return json.dumps({"error": str(e)})
 
 @tool("web_fetch", parse_docstring=True)
-def web_fetch_tool(url: str) -> str:
+async def web_fetch_tool(url: str) -> str:
     """Fetch the contents of a web page at a given URL.
     Only fetch EXACT URLs that have been provided directly by the user or have been returned in results from the web_search and web_fetch tools.
 
@@ -44,8 +49,9 @@ def web_fetch_tool(url: str) -> str:
 
     import httpx
     try:
-        response = httpx.get(url, timeout=10.0, follow_redirects=True)
-        response.raise_for_status()
+        async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
+            response = await client.get(url)
+            response.raise_for_status()
         
         # Naive HTML stripping to return clean text chunks safely
         text = re.sub(r'<style.*?>.*?</style>', '', response.text, flags=re.IGNORECASE | re.DOTALL)
