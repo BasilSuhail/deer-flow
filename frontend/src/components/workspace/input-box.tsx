@@ -96,7 +96,7 @@ function getResolvedMode(
     return mode;
   }
   // Default: "pro" gives plan mode; use "flash" only as an explicit opt-in
-  return supportsThinking ? "pro" : "pro";
+  return "pro";
 }
 
 export function InputBox({

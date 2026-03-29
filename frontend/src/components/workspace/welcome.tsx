@@ -1,13 +1,11 @@
 "use client";
 
 import { SearchIcon } from "lucide-react";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
 import { AuroraText } from "../ui/aurora-text";
-
-let waved = false;
 
 export function Welcome({
   className,
@@ -16,12 +14,13 @@ export function Welcome({
   className?: string;
   mode?: "ultra" | "pro" | "thinking" | "flash";
 }) {
+  const [waved, setWaved] = useState(false);
   const colors = useMemo(
     () => ["#efefbb", "#e9c665", "#e3a812"],
     [],
   );
   useEffect(() => {
-    waved = true;
+    setWaved(true);
   }, []);
   return (
     <div
