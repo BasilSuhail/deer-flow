@@ -45,7 +45,7 @@ async def get_research_scores() -> dict:
     except FileNotFoundError:
         return {"scores": [], "query": None, "updated_at": None}
     except Exception:
-        logger.debug("Failed to read scores file", exc_info=True)
+        logger.warning("Failed to read scores file", exc_info=True)
         return {"scores": [], "query": None, "updated_at": None}
 
 
@@ -62,7 +62,7 @@ async def get_subagent_status() -> dict:
     except FileNotFoundError:
         return {"tasks": [], "updated_at": None}
     except Exception:
-        logger.debug("Failed to read subagent status file", exc_info=True)
+        logger.warning("Failed to read subagent status file", exc_info=True)
         return {"tasks": [], "updated_at": None}
 
 

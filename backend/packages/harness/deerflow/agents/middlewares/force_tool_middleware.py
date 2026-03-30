@@ -22,34 +22,47 @@ from typing import override
 from langchain.agents import AgentState
 from langchain.agents.middleware import AgentMiddleware
 from langchain.agents.middleware.types import ModelRequest, ModelResponse
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from deerflow.scoring import CrossValidator, ResearchScore
 from deerflow.subagents.executor import clear_all_background_tasks
 
 logger = logging.getLogger(__name__)
 
-# Minimal system prompt for synthesis — keeps the model focused.
+# System prompt for synthesis.
 # IMPORTANT: "Do not use <think> tags" prevents Qwen 3.5 from hiding
 # the entire answer inside a thinking block and returning empty content.
-_SYNTHESIS_SYSTEM = "You are a research assistant. Synthesize the information below into a clear, well-structured answer. Do not use <think> tags. Respond directly."
+_SYNTHESIS_SYSTEM = (
+    "You are a research synthesizer. Write factual, well-structured answers "
+    "using only the research results provided. Cite which result supports each "
+    "claim. Do not use <think> tags."
+)
 
-_SYNTHESIS_INSTRUCTION_TEMPLATE = """SYNTHESIZE the research results above into a comprehensive answer.
+# Template is formatted with {query} at build time.
+_SYNTHESIS_INSTRUCTION_TEMPLATE = """Answer this question: {query}
 
-The results have been scored for quality. Pay MORE attention to higher-scored results.
+Using the research results above, write a comprehensive response with this structure:
 
-RULES:
-1. Write ONLY about the topic the user asked about — nothing else
-2. Use the ACTUAL data from the research results above
-3. Prefer information from the highest-scored result(s)
-4. Structure with markdown headings (##), bullet points, and comparisons
-5. Include specific facts, dates, numbers, and names from the results
-6. If a result mentions sources/URLs, include them as citations
-7. Do NOT mention scoring, agents, frameworks, or how this system works
-8. Do NOT make up information that isn't in the results above
-9. Do NOT use <think> tags — write your answer directly
+**Summary** — 1-2 sentences that directly answer the question.
 
-Write your answer now:"""
+## Key Findings
+Bullet points of the most important facts. For each, note which result it came from — e.g. "Result 1 reports that..." or "According to Result 2...".
+
+## [Add 2-3 section headings relevant to the topic]
+Detailed breakdown with specific numbers, dates, names, and comparisons pulled from the results.
+
+## Confirmed by multiple results
+Facts that appear in 2 or more results — these are the most reliable findings.
+
+## Sources
+Any URLs or named sources mentioned in the results.
+
+Rules:
+- Every specific claim must reference a result: "Result 1 states...", "Result 2 found..."
+- Where results contradict each other, present both: "Result 1 says X; Result 2 says Y"
+- Do NOT add information not present in the results above
+- Do NOT mention agents, scoring, or how this system works
+- Do NOT use <think> tags — write your answer directly"""
 
 # Research aspects for the 3 subagents
 _ASPECTS = [
@@ -157,8 +170,10 @@ def _build_synthesis_messages(
 ) -> list:
     """Build a trimmed message list for synthesis with scores.
 
-    Results are ordered by score (best first) and annotated with their
-    quality rating so the model knows which to trust more.
+    Results are ordered by score (best first) and labelled with their rank
+    and score so the model knows which to trust. The synthesis instruction
+    is injected directly into the HumanMessage — a trailing SystemMessage
+    confuses small models and is avoided.
     """
     user_msg = None
     for m in reversed(messages):
@@ -167,27 +182,36 @@ def _build_synthesis_messages(
             break
 
     tool_results = _extract_tool_results(messages)
+    query_text = user_msg.content if user_msg else "Research task"
+    if isinstance(query_text, list):
+        # Handle structured content blocks
+        query_text = next(
+            (b.get("text", "") for b in query_text if isinstance(b, dict) and b.get("type") == "text"),
+            "Research task",
+        )
 
-    # Build result text ordered by score (best first)
+    # Build result text ordered by score (best first), labelled for citation
     result_parts = []
     for rank, score in enumerate(scores):
         idx = score.agent_index
-        if idx < len(tool_results):
-            quality = "HIGH" if score.weighted_total >= 45 else "MEDIUM" if score.weighted_total >= 25 else "LOW"
+        if 0 <= idx < len(tool_results):
             result_parts.append(
-                f"**Research Result {rank + 1}** (Quality: {quality}, Score: {score.weighted_total:.0f}/100):\n"
+                f"--- Result {rank + 1} (Score: {score.weighted_total:.0f}/100) ---\n"
                 f"{tool_results[idx]}"
             )
 
-    result_text = "\n\n---\n\n".join(result_parts)
-    query_text = user_msg.content if user_msg else "Research task"
+    result_text = "\n\n".join(result_parts)
+    instruction = _SYNTHESIS_INSTRUCTION_TEMPLATE.format(query=query_text)
 
     return [
         HumanMessage(
-            content=f"My question: {query_text}\n\n"
-            f"Here are the research results, ordered by quality score:\n\n{result_text}"
+            content=(
+                f"Research results for your question:\n\n"
+                f"{result_text}\n\n"
+                f"---\n\n"
+                f"{instruction}"
+            )
         ),
-        SystemMessage(content=_SYNTHESIS_INSTRUCTION_TEMPLATE),
     ]
 
 
@@ -272,8 +296,15 @@ class ForceToolMiddleware(AgentMiddleware[AgentState]):
                         logger.warning("ForceToolMiddleware: SYNTHESIS returned empty — falling back to best subagent result")
                         if tool_results and scores:
                             best_idx = scores[0].agent_index
-                            if best_idx < len(tool_results):
+                            # Guard: agent_index must be a valid index into tool_results
+                            if 0 <= best_idx < len(tool_results):
                                 msg.content = _strip_think_tags(tool_results[best_idx])
+                            elif tool_results:
+                                # agent_index out of range — just use the first available result
+                                msg.content = _strip_think_tags(tool_results[0])
+                        if not msg.content or (isinstance(msg.content, str) and len(msg.content.strip()) == 0):
+                            # Everything failed — give user something useful rather than blank
+                            msg.content = "Research completed but synthesis failed. Please try again."
                     logger.info(
                         "ForceToolMiddleware: SYNTHESIS msg length=%d, has_tool_calls=%s",
                         len(msg.content) if isinstance(msg.content, str) else 0,
