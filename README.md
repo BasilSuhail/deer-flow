@@ -1,6 +1,12 @@
 # 🚀 Quick Commands
 
-### Start the Application
+### One-Click Start (Mac)
+The fastest way to get DeerFlow running. Handles setup, config, and Docker in one go:
+```bash
+cd repo && ./boom.sh
+```
+
+### Manual Start
 ```bash
 cd repo && make docker-start
 ```
