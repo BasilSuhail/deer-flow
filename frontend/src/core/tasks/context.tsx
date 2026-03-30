@@ -54,7 +54,7 @@ export function useUpdateSubtask() {
   const { tasks, setTasks } = useSubtaskContext();
   const updateSubtask = useCallback(
     (task: Partial<Subtask> & { id: string }) => {
-      const existing = tasks[task.id] || {};
+      const existing = tasks[task.id] ?? {};
       tasks[task.id] = { ...existing, ...task } as Subtask;
       // Always trigger a re-render to reflect status changes, results, or timestamps
       setTasks({ ...tasks });

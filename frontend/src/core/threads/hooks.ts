@@ -200,7 +200,7 @@ export function useThreadStream({
         };
         updateSubtask({
           id: e.task_id,
-          error: e.error || "Task failed",
+          error: e.error ?? "Task failed",
           status: "failed",
           completed_at: new Date().toISOString(),
         });
