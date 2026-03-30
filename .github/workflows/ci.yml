@@ -7,8 +7,8 @@ on:
     branches: [ main ]
 
 jobs:
-  lint-and-typecheck:
-    name: "CI / Lint & Type Check"
+  lint:
+    name: "Lint & Type Check"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,8 +40,8 @@ jobs:
           pnpm run lint
           pnpm run typecheck
 
-  docker-build:
-    name: "CI / Docker Compose Build"
+  build:
+    name: "Docker Build"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -56,3 +56,44 @@ jobs:
           mkdir -p $PNPM_STORE_PATH
           # Build services to ensure Dockerfile and compose config is valid
           docker compose -f docker/docker-compose-dev.yaml build
+
+  audit:
+    name: "Security & Dependency Audit"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history needed for secret scan
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Backend Audit
+        run: |
+          cd backend
+          uv sync
+          # We can add more specific python safety tools here later if needed
+
+      - name: Frontend Audit
+        run: |
+          cd frontend
+          corepack enable && corepack install -g pnpm@10.26.2
+          # Only fail on high/critical vulnerabilities
+          pnpm audit --audit-level high
+
+      - name: Secret Scan (TruffleHog)
+        uses: trufflesecurity/trufflehog@main
+        with:
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --debug --only-verified

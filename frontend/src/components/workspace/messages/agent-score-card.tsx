@@ -1,9 +1,9 @@
 import { BarChart3Icon, CheckCircleIcon, ShieldCheckIcon, SparklesIcon } from "lucide-react";
 import { useMemo } from "react";
 
+import type { ResearchScore } from "@/core/tasks/types";
 import { cn } from "@/lib/utils";
 
-import type { ResearchScore } from "@/core/tasks/types";
 
 function ScoreBar({
   label,
