@@ -204,7 +204,6 @@ def _score_clarity(text: str) -> tuple[float, dict]:
     headings = _count_headings(text)
     bullets = _count_bullet_points(text)
     paragraphs = _count_paragraphs(text)
-    words = len(text.split())
 
     # Average sentence length (lower is clearer for research)
     sentences = re.split(r'[.!?]+', text)

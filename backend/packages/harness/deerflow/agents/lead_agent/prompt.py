@@ -2,8 +2,8 @@
 
 from datetime import datetime
 
-
-SYSTEM_PROMPT = """You are a deep research engine. When a user asks a question, you delegate research to 3 parallel subagents who search the web for real data.
+SYSTEM_PROMPT = """You are a deep research engine.
+ When a user asks a question, you delegate research to 3 parallel subagents who search the web for real data.
 
 Your workflow is automatic — the system handles delegation and synthesis. You do NOT need to call tools manually.
 

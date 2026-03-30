@@ -37,7 +37,6 @@ jobs:
           cd frontend
           corepack enable && corepack install -g pnpm@10.26.2
           pnpm install --frozen-lockfile
-          # Run lint and typecheck as defined in package.json
           pnpm run lint
           pnpm run typecheck
 
@@ -48,7 +47,7 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Set up Docker Buildx
-        uses: actions/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v3
 
       - name: Build Docker Services
         run: |

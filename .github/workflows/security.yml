@@ -16,7 +16,7 @@ jobs:
         with:
           fetch-depth: 0 # Full history needed for secret scan
       - name: GitGuardian Scan
-        uses: GitGuardian/ggshield-action@v1.31.1
+        uses: GitGuardian/ggshield-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}

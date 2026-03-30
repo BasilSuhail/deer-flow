@@ -20,7 +20,6 @@ _OLLAMA_BASE = os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal:11
 def _get_system_ram() -> dict:
     """Get system RAM usage."""
     try:
-        import resource
         # Fallback: use /proc/meminfo on Linux, sysctl on macOS
         if platform.system() == "Darwin":
             import subprocess
