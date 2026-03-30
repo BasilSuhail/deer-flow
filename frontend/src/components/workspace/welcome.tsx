@@ -9,7 +9,6 @@ import { AuroraText } from "../ui/aurora-text";
 
 export function Welcome({
   className,
-  mode,
 }: {
   className?: string;
   mode?: "ultra" | "pro" | "thinking" | "flash";

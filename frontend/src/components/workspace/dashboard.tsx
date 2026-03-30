@@ -127,7 +127,9 @@ export function Dashboard() {
           if (data?.scores?.length) setScores(data);
           else setScores(null);
         })
-        .catch(() => {});
+        .catch(() => {
+          /* ignore */
+        });
     };
     fetchStats();
     const interval = setInterval(fetchStats, 2000);
@@ -210,7 +212,7 @@ export function Dashboard() {
         <div className="space-y-2">
           {configuredModels.map((cm: any, i: number) => {
             const role = MODEL_ROLES[i] ?? MODEL_ROLES[MODEL_ROLES.length - 1]!;
-            const RoleIcon = role!.icon;
+            const RoleIcon = role.icon;
             const live = findOllamaModel(cm, ollamaModels);
             const isLoaded = live !== null;
             const vram = live?.size_vram ?? 0;
@@ -227,7 +229,7 @@ export function Dashboard() {
                 {/* Row 1: role + status */}
                 <div className="flex items-center gap-1.5 mb-1">
                   <RoleIcon className="size-3 text-muted-foreground" />
-                  <span className="font-medium text-foreground">{role!.label}</span>
+                  <span className="font-medium text-foreground">{role.label}</span>
                   <span className="ml-auto flex items-center gap-1">
                     {isLoaded ? (
                       <>
@@ -252,7 +254,7 @@ export function Dashboard() {
 
                 {/* Row 3: VRAM + role description */}
                 <div className="flex items-center justify-between mt-1 text-muted-foreground">
-                  <span>{role!.description}</span>
+                  <span>{role.description}</span>
                   {isLoaded && vram > 0 && (
                     <span className="text-foreground">{formatBytes(vram)}</span>
                   )}
