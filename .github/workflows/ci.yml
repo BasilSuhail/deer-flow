@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint-and-typecheck:
+    name: "CI / Lint & Type Check"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Backend Lint
+        run: |
+          cd backend
+          uv sync
+          uv run ruff check .
+
+      - name: Frontend Lint & Type Check
+        run: |
+          cd frontend
+          corepack enable && corepack install -g pnpm@10.26.2
+          pnpm install --frozen-lockfile
+          # Run lint and typecheck as defined in package.json
+          pnpm run lint
+          pnpm run typecheck
+
+  docker-build:
+    name: "CI / Docker Compose Build"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: actions/setup-buildx-action@v3
+
+      - name: Build Docker Services
+        run: |
+          export PNPM_STORE_PATH=$GITHUB_WORKSPACE/.pnpm-store
+          export DEER_FLOW_ROOT=$GITHUB_WORKSPACE
+          mkdir -p $PNPM_STORE_PATH
+          # Build services to ensure Dockerfile and compose config is valid
+          docker compose -f docker/docker-compose-dev.yaml build
