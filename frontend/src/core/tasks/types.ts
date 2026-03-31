@@ -21,4 +21,6 @@ export interface Subtask {
   result?: string;
   error?: string;
   score?: ResearchScore;
+  started_at?: string;
+  completed_at?: string;
 }

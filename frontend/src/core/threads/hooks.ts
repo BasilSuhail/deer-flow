@@ -131,7 +131,7 @@ export function useThreadStream({
     },
     onUpdateEvent(data) {
       const updates: Array<Partial<AgentThreadState> | null> = Object.values(
-        data || {},
+        data ?? {},
       );
       for (const update of updates) {
         if (update && "title" in update && update.title) {
@@ -161,13 +161,49 @@ export function useThreadStream({
     onCustomEvent(event: unknown) {
       if (typeof event !== "object" || event === null || !("type" in event)) return;
 
-      if (event.type === "task_running") {
+      if (event.type === "task_started") {
+        const e = event as {
+          type: "task_started";
+          task_id: string;
+          description: string;
+        };
+        updateSubtask({
+          id: e.task_id,
+          description: e.description,
+          status: "in_progress",
+          started_at: new Date().toISOString(),
+        });
+      } else if (event.type === "task_running") {
         const e = event as {
           type: "task_running";
           task_id: string;
           message: AIMessage;
         };
-        updateSubtask({ id: e.task_id, latestMessage: e.message });
+        updateSubtask({ id: e.task_id, latestMessage: e.message, status: "in_progress" });
+      } else if (event.type === "task_completed") {
+        const e = event as {
+          type: "task_completed";
+          task_id: string;
+          result: string;
+        };
+        updateSubtask({
+          id: e.task_id,
+          result: e.result,
+          status: "completed",
+          completed_at: new Date().toISOString(),
+        });
+      } else if (event.type === "task_failed" || event.type === "task_timed_out") {
+        const e = event as {
+          type: "task_failed" | "task_timed_out";
+          task_id: string;
+          error?: string;
+        };
+        updateSubtask({
+          id: e.task_id,
+          error: e.error ?? "Task failed",
+          status: "failed",
+          completed_at: new Date().toISOString(),
+        });
       } else if (event.type === "research_scores") {
         const e = event as {
           type: "research_scores";
@@ -277,7 +313,7 @@ export function useThreadStream({
 
                   // Create a File object from the blob
                   return new File([blob], fileUIPart.filename, {
-                    type: fileUIPart.mediaType || blob.type,
+                    type: fileUIPart.mediaType ?? blob.type,
                   });
                 } catch (error) {
                   console.error(
