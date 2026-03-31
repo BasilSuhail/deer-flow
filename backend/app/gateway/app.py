@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.gateway.routers import models, stats, threads
+from app.gateway.routers import models, ollama, stats, threads
 from deerflow.config.app_config import get_app_config
 
 logging.basicConfig(
@@ -44,6 +44,7 @@ def create_app() -> FastAPI:
         openapi_tags=[
             {"name": "models", "description": "Available AI models"},
             {"name": "threads", "description": "Research thread management"},
+            {"name": "ollama", "description": "Ollama service integration"},
             {"name": "health", "description": "Health check"},
         ],
     )
@@ -51,6 +52,7 @@ def create_app() -> FastAPI:
     app.include_router(models.router)
     app.include_router(stats.router)
     app.include_router(threads.router)
+    app.include_router(ollama.router)
 
     @app.get("/health", tags=["health"])
     async def health_check() -> dict:
