@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 
 import httpx
 from fastapi import APIRouter, HTTPException
@@ -10,19 +11,63 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ollama", tags=["ollama"])
 
-_OLLAMA_BASE = os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+_OLLAMA_BASE = os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal:11435")
 
 
 class PullRequest(BaseModel):
     model: str
 
 
+@router.get("/models")
+async def list_models():
+    """Proxy a list request to the local Ollama instance."""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(f"{_OLLAMA_BASE}/api/tags")
+            if response.status_code != 200:
+                raise HTTPException(status_code=response.status_code, detail="Ollama error while listing models")
+            return response.json()
+    except httpx.RequestError as e:
+        logger.error("Failed to connect to Ollama: %s", e)
+        raise HTTPException(status_code=503, detail="Failed to connect to Ollama service.")
+
+
+@router.delete("/delete")
+async def delete_model(request: PullRequest):
+    """Proxy a delete request to the local Ollama instance."""
+    model_name = request.model.strip().lower()
+    if not model_name:
+        raise HTTPException(status_code=400, detail="Model name is required")
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            # Use build_request to ensure method is exactly DELETE with JSON body
+            req = client.build_request(
+                "DELETE",
+                f"{_OLLAMA_BASE}/api/delete",
+                json={"name": model_name}
+            )
+            response = await client.send(req)
+            if response.status_code not in (200, 204):
+                error_text = await response.aread()
+                raise HTTPException(status_code=response.status_code, detail=f"Ollama error: {error_text.decode('utf-8', errors='ignore')}")
+            return {"status": "deleted", "model": model_name}
+    except httpx.RequestError as e:
+        logger.error("Failed to connect to Ollama for delete: %s", e)
+        raise HTTPException(status_code=503, detail="Failed to connect to Ollama service.")
+
+
 @router.post("/pull")
 async def pull_model(request: PullRequest):
     """Proxy a pull request to the local Ollama instance and stream the response."""
-    model_name = request.model.strip()
+    model_name = request.model.strip().lower()
+    model_name = re.sub(r'\s+', '', model_name)
+
     if not model_name:
         raise HTTPException(status_code=400, detail="Model name is required")
+
+    if ":" not in model_name:
+        model_name += ":latest"
 
     async def generate():
         try:
