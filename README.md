@@ -26,6 +26,23 @@ If `make docker-start` fails with `Pool overlaps with other one on this address 
 ```bash
 docker stop deer-flow-nginx deer-flow-gateway deer-flow-langgraph deer-flow-frontend 2>/dev/null; docker rm deer-flow-nginx deer-flow-gateway deer-flow-langgraph deer-flow-frontend 2>/dev/null; docker network rm docker_deer-flow-dev deer-flow-dev_deer-flow-dev 2>/dev/null; echo "Cleaned up"
 ```
+
+### Docker Cleanup & Reset (Nuclear Option)
+If the app is giving "Bad Gateway" or connection errors and regular restarts don't work, run this to completely wipe the DeerFlow Docker state and start fresh:
+```bash
+# 1. Stop and remove all DeerFlow containers
+docker stop deer-flow-nginx deer-flow-gateway deer-flow-langgraph deer-flow-frontend 2>/dev/null
+docker rm deer-flow-nginx deer-flow-gateway deer-flow-langgraph deer-flow-frontend 2>/dev/null
+
+# 2. Remove the custom network
+docker network rm deer-flow-dev_deer-flow-dev 2>/dev/null
+
+# 3. Optional: Prune unused Docker data (Use with caution, clears all unused Docker data)
+# docker system prune -f
+
+# 4. Restart using the one-click script
+./boom.sh
+```
 Then start again:
 ```bash
 cd repo && make docker-start
