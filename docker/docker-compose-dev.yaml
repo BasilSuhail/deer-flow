@@ -34,6 +34,8 @@ services:
       args:
         PNPM_STORE_PATH: ${PNPM_STORE_PATH:-/root/.local/share/pnpm/store}
     container_name: deer-flow-frontend
+    mem_limit: 12g
+    cpus: 4
     command: sh -c "cd frontend && pnpm run dev"
     volumes:
       - ../frontend/src:/app/frontend/src
@@ -46,6 +48,7 @@ services:
       - NODE_ENV=development
       - WATCHPACK_POLLING=true
       - CI=true
+      - NODE_OPTIONS=--max-old-space-size=6144
     env_file:
       - ../frontend/.env
     networks:
