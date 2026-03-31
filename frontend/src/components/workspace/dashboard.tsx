@@ -98,6 +98,70 @@ export function Dashboard() {
   const [error, setError] = useState(false);
   const prevPathRef = useRef(pathname);
 
+  // Model Pulling State
+  const [pullModelName, setPullModelName] = useState("");
+  const [isPulling, setIsPulling] = useState(false);
+  const [pullStatus, setPullStatus] = useState("");
+  const [pullProgress, setPullProgress] = useState(0);
+
+  const handlePullModel = async () => {
+    if (!pullModelName.trim() || isPulling) return;
+    setIsPulling(true);
+    setPullStatus("Starting pull...");
+    setPullProgress(0);
+
+    try {
+      const res = await fetch("/api/ollama/pull", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: pullModelName.trim() }),
+      });
+
+      if (!res.ok || !res.body) {
+        throw new Error("Failed to start pull");
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+
+      while (!done) {
+        const { value, done: doneReading } = await reader.read();
+        done = doneReading;
+        if (value) {
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split("\\n").filter(Boolean);
+          for (const line of lines) {
+            try {
+              const data = JSON.parse(line);
+              if (data.error) {
+                setPullStatus(`Error: ${data.error}`);
+                setIsPulling(false);
+                return;
+              }
+              setPullStatus(data.status ?? "Pulling...");
+              if (data.total && data.completed) {
+                setPullProgress(Math.round((data.completed / data.total) * 100));
+              }
+            } catch {
+              // ignore parse error on partial chunks
+            }
+          }
+        }
+      }
+      setPullStatus("Pull complete!");
+      setPullModelName("");
+      setTimeout(() => {
+        setPullStatus("");
+        setPullProgress(0);
+      }, 3000);
+    } catch (err: any) {
+      setPullStatus(`Error: ${err.message}`);
+    } finally {
+      setIsPulling(false);
+    }
+  };
+
   // Clear stale scores and subagent data when navigating to a different chat
   useEffect(() => {
     if (pathname !== prevPathRef.current) {
@@ -275,6 +339,41 @@ export function Dashboard() {
               </div>
             </div>
           ))}
+
+        {/* Model Puller UI */}
+        <div className="mt-4 pt-3 border-t border-border/50">
+          <div className="flex flex-col gap-2">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Pull New Model
+            </span>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={pullModelName}
+                onChange={(e) => setPullModelName(e.target.value)}
+                placeholder="e.g., qwen2.5:7b"
+                className="flex-1 rounded-md border bg-background px-3 py-1 text-sm outline-none placeholder:text-muted-foreground/50 focus:ring-1 focus:ring-primary"
+                disabled={isPulling}
+              />
+              <button
+                onClick={handlePullModel}
+                disabled={isPulling || !pullModelName.trim()}
+                className="rounded-md bg-primary text-primary-foreground px-3 py-1 text-sm font-medium disabled:opacity-50 transition-colors"
+              >
+                {isPulling ? "Pulling..." : "Pull"}
+              </button>
+            </div>
+            {pullStatus && (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground truncate flex-1 pr-2">{pullStatus}</span>
+                  {pullProgress > 0 && <span className="font-mono">{pullProgress}%</span>}
+                </div>
+                {pullProgress > 0 && <ProgressBar percent={pullProgress} color="bg-blue-500" />}
+              </div>
+            )}
+          </div>
+        </div>
       </section>
 
       {/* Subagent Activity */}
