@@ -78,6 +78,14 @@ const MODEL_ROLES: { label: string; icon: typeof BrainIcon; description: string 
   { label: "Subagent", icon: ZapIcon, description: "Research, execution & web search" },
 ];
 
+const DISCOVER_MODELS = [
+  { name: "llama3.1:8b", description: "Meta's most capable 8B model" },
+  { name: "qwen2.5:7b", description: "Strong reasoning, excellent for subagents" },
+  { name: "mistral:7b", description: "The classic high-performance 7B" },
+  { name: "phi3:mini", description: "Fast, compact, ideal for small tasks" },
+  { name: "nomic-embed-text", description: "Required for document processing" },
+];
+
 const SCORE_LABELS = ["General", "Technical", "Community"];
 
 function ScoreBar({ value, color }: { value: number; color: string }) {
@@ -96,6 +104,7 @@ export function Dashboard() {
   const [stats, setStats] = useState<any>(null);
   const [scores, setScores] = useState<any>(null);
   const [error, setError] = useState(false);
+  const [activeTab, setActiveTab] = useState<"installed" | "discover">("installed");
   const prevPathRef = useRef(pathname);
 
   // Model Pulling State
@@ -104,17 +113,26 @@ export function Dashboard() {
   const [pullStatus, setPullStatus] = useState("");
   const [pullProgress, setPullProgress] = useState(0);
 
-  const handlePullModel = async () => {
-    if (!pullModelName.trim() || isPulling) return;
+  const handlePullModel = async (name?: string) => {
+    const target = name || pullModelName;
+    let sanitizedName = target.trim().toLowerCase().replace(/\s+/g, '');
+    if (!sanitizedName) return;
+
+    if (!sanitizedName.includes(':')) {
+      sanitizedName += ':latest';
+    }
+
+    if (isPulling) return;
     setIsPulling(true);
-    setPullStatus("Starting pull...");
+    setPullModelName(sanitizedName);
+    setPullStatus(`Starting pull for ${sanitizedName}...`);
     setPullProgress(0);
 
     try {
       const res = await fetch("/api/ollama/pull", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: pullModelName.trim() }),
+        body: JSON.stringify({ model: sanitizedName }),
       });
 
       if (!res.ok || !res.body) {
@@ -130,7 +148,7 @@ export function Dashboard() {
         done = doneReading;
         if (value) {
           const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split("\\n").filter(Boolean);
+          const lines = chunk.split("\n").filter(Boolean);
           for (const line of lines) {
             try {
               const data = JSON.parse(line);
@@ -159,6 +177,20 @@ export function Dashboard() {
       setPullStatus(`Error: ${err.message}`);
     } finally {
       setIsPulling(false);
+    }
+  };
+
+  const handleDeleteModel = async (name: string) => {
+    if (!confirm(`Delete ${name}? This cannot be undone.`)) return;
+    try {
+      const res = await fetch("/api/ollama/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: name }),
+      });
+      if (!res.ok) throw new Error("Delete failed");
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
     }
   };
 
@@ -220,7 +252,8 @@ export function Dashboard() {
   const sysRam = stats.system_ram;
   const ollama = stats.ollama;
   const configuredModels: any[] = stats.configured_models ?? [];
-  const ollamaModels: any[] = ollama?.models ?? [];
+  const runningModels: any[] = ollama?.models ?? [];
+  const availableModels: any[] = ollama?.available ?? [];
   const subagents: any[] = stats.subagents ?? [];
 
   // Active subagents count
@@ -250,7 +283,7 @@ export function Dashboard() {
         </p>
       </section>
 
-      {/* Ollama connection header */}
+      {/* Ollama section */}
       <section>
         <div className="flex items-center gap-1.5 mb-2 font-medium text-foreground">
           <CpuIcon className="size-3.5" />
@@ -262,118 +295,164 @@ export function Dashboard() {
           )}
         </div>
 
-        {/* Model VRAM bar (combined) */}
-        {totalVram > 0 && (
-          <div className="mb-2">
-            <ProgressBar percent={vramPercent} color="bg-violet-500" />
-            <p className="text-muted-foreground mt-1">
-              VRAM: {formatBytes(totalVram)} / {formatBytes(sysRam.total)}
-            </p>
-          </div>
-        )}
-
-        {/* Per-model cards with role + usage merged */}
-        <div className="space-y-2">
-          {configuredModels.map((cm: any, i: number) => {
-            const role = MODEL_ROLES[i] ?? MODEL_ROLES[MODEL_ROLES.length - 1]!;
-            const RoleIcon = role.icon;
-            const live = findOllamaModel(cm, ollamaModels);
-            const isLoaded = live !== null;
-            const vram = live?.size_vram ?? 0;
-
-            return (
-              <div
-                key={cm.name}
-                className={`rounded-md p-2 border transition-colors ${
-                  isLoaded
-                    ? "bg-secondary/40 border-primary/20"
-                    : "bg-secondary/20 border-transparent"
-                }`}
-              >
-                {/* Row 1: role + status */}
-                <div className="flex items-center gap-1.5 mb-1">
-                  <RoleIcon className="size-3 text-muted-foreground" />
-                  <span className="font-medium text-foreground">{role.label}</span>
-                  <span className="ml-auto flex items-center gap-1">
-                    {isLoaded ? (
-                      <>
-                        <span className="inline-block size-1.5 rounded-full bg-green-500" />
-                        <span className="text-green-500">active</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="inline-block size-1.5 rounded-full bg-muted-foreground" />
-                        <span className="text-muted-foreground">
-                          {ollama?.reachable ? "standby" : "offline"}
-                        </span>
-                      </>
-                    )}
-                  </span>
-                </div>
-
-                {/* Row 2: model name */}
-                <div className="font-mono text-muted-foreground truncate" title={cm.model}>
-                  {cm.display_name ?? cm.model}
-                </div>
-
-                {/* Row 3: VRAM + role description */}
-                <div className="flex items-center justify-between mt-1 text-muted-foreground">
-                  <span>{role.description}</span>
-                  {isLoaded && vram > 0 && (
-                    <span className="text-foreground">{formatBytes(vram)}</span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+        {/* Tab Switcher */}
+        <div className="flex gap-4 mb-3 border-b border-border/50">
+          <button
+            onClick={() => setActiveTab("installed")}
+            className={`pb-1 transition-colors ${activeTab === "installed" ? "text-primary border-b border-primary" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            Installed
+          </button>
+          <button
+            onClick={() => setActiveTab("discover")}
+            className={`pb-1 transition-colors ${activeTab === "discover" ? "text-primary border-b border-primary" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            Discover
+          </button>
         </div>
 
-        {/* Show any Ollama models loaded that aren't in config */}
-        {ollamaModels
-          .filter((om: any) => !configuredModels.some((cm: any) => findOllamaModel(cm, [om])))
-          .map((om: any, i: number) => (
-            <div key={`extra-${i}`} className="rounded-md p-2 bg-secondary/20 mt-2">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-muted-foreground truncate">{om.name}</span>
-                <span className="text-muted-foreground">{formatBytes(om.size_vram)}</span>
+        {activeTab === "installed" && (
+          <div className="space-y-4">
+            {/* Model VRAM bar (combined) */}
+            {totalVram > 0 && (
+              <div className="mb-2">
+                <ProgressBar percent={vramPercent} color="bg-violet-500" />
+                <p className="text-muted-foreground mt-1">
+                  VRAM: {formatBytes(totalVram)} / {formatBytes(sysRam.total)}
+                </p>
               </div>
-            </div>
-          ))}
+            )}
 
-        {/* Model Puller UI */}
-        <div className="mt-4 pt-3 border-t border-border/50">
-          <div className="flex flex-col gap-2">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Pull New Model
-            </span>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={pullModelName}
-                onChange={(e) => setPullModelName(e.target.value)}
-                placeholder="e.g., qwen2.5:7b"
-                className="flex-1 rounded-md border bg-background px-3 py-1 text-sm outline-none placeholder:text-muted-foreground/50 focus:ring-1 focus:ring-primary"
-                disabled={isPulling}
-              />
-              <button
-                onClick={handlePullModel}
-                disabled={isPulling || !pullModelName.trim()}
-                className="rounded-md bg-primary text-primary-foreground px-3 py-1 text-sm font-medium disabled:opacity-50 transition-colors"
-              >
-                {isPulling ? "Pulling..." : "Pull"}
-              </button>
+            {/* Configured Roles */}
+            <div className="space-y-2">
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Roles</span>
+              {configuredModels.map((cm: any, i: number) => {
+                const role = MODEL_ROLES[i] ?? MODEL_ROLES[MODEL_ROLES.length - 1]!;
+                const RoleIcon = role.icon;
+                const live = findOllamaModel(cm, runningModels);
+                const isLoaded = live !== null;
+                const vram = live?.size_vram ?? 0;
+
+                return (
+                  <div
+                    key={cm.name}
+                    className={`rounded-md p-2 border transition-colors ${
+                      isLoaded
+                        ? "bg-secondary/40 border-primary/20"
+                        : "bg-secondary/20 border-transparent"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <RoleIcon className="size-3 text-muted-foreground" />
+                      <span className="font-medium text-foreground">{role.label}</span>
+                      <span className="ml-auto flex items-center gap-1">
+                        {isLoaded ? (
+                          <>
+                            <span className="inline-block size-1.5 rounded-full bg-green-500" />
+                            <span className="text-green-500">active</span>
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">standby</span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="font-mono text-muted-foreground truncate" title={cm.model}>
+                      {cm.display_name ?? cm.model}
+                    </div>
+                    <div className="flex items-center justify-between mt-1 text-muted-foreground">
+                      <span>{role.description}</span>
+                      {isLoaded && vram > 0 && <span className="text-foreground">{formatBytes(vram)}</span>}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            {pullStatus && (
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground truncate flex-1 pr-2">{pullStatus}</span>
-                  {pullProgress > 0 && <span className="font-mono">{pullProgress}%</span>}
+
+            {/* Other Installed Models */}
+            {availableModels.length > 0 && (
+              <div className="space-y-2">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Library</span>
+                <div className="max-h-[200px] overflow-y-auto pr-1 space-y-1.5 custom-scrollbar">
+                  {availableModels
+                    .filter(am => !configuredModels.some(cm => cm.model.toLowerCase() === am.name.toLowerCase()))
+                    .map((am: any) => (
+                      <div key={am.name} className="group flex items-center justify-between p-1.5 rounded hover:bg-secondary/30 transition-colors border border-transparent hover:border-border/50">
+                        <div className="min-w-0 flex-1 mr-2">
+                          <div className="font-mono truncate" title={am.name}>{am.name}</div>
+                          <div className="text-[10px] text-muted-foreground">{formatBytes(am.size)}</div>
+                        </div>
+                        <button
+                          onClick={() => handleDeleteModel(am.name)}
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/10 text-red-500/70 hover:text-red-500 transition-all"
+                          title="Delete model"
+                        >
+                          <XCircleIcon className="size-3" />
+                        </button>
+                      </div>
+                    ))}
                 </div>
-                {pullProgress > 0 && <ProgressBar percent={pullProgress} color="bg-blue-500" />}
               </div>
             )}
           </div>
-        </div>
+        )}
+
+        {activeTab === "discover" && (
+          <div className="space-y-3">
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Catalog</span>
+            <div className="grid grid-cols-1 gap-2">
+              {DISCOVER_MODELS.map(m => {
+                const isInstalled = availableModels.some(am => am.name.toLowerCase().startsWith(m.name.toLowerCase()));
+                return (
+                  <div key={m.name} className="p-2 rounded-md border bg-secondary/10 flex items-center justify-between">
+                    <div>
+                      <div className="font-bold">{m.name}</div>
+                      <div className="text-[10px] text-muted-foreground">{m.description}</div>
+                    </div>
+                    <button
+                      onClick={() => handlePullModel(m.name)}
+                      disabled={isPulling || isInstalled}
+                      className={`px-2 py-1 rounded text-[10px] font-bold ${isInstalled ? "bg-green-500/10 text-green-500" : "bg-primary text-primary-foreground hover:opacity-90"}`}
+                    >
+                      {isInstalled ? "Installed" : "Pull"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            
+            <div className="pt-2 border-t border-border/50">
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold block mb-2">Custom Name</span>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={pullModelName}
+                  onChange={(e) => setPullModelName(e.target.value)}
+                  placeholder="e.g. gemma2:2b"
+                  className="flex-1 rounded border bg-background px-2 py-1 text-[11px] outline-none"
+                  disabled={isPulling}
+                />
+                <button
+                  onClick={() => handlePullModel()}
+                  disabled={isPulling || !pullModelName.trim()}
+                  className="rounded bg-primary text-primary-foreground px-2 py-1 text-[11px] font-medium disabled:opacity-50"
+                >
+                  Pull
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Pulling Progress (global for section) */}
+        {pullStatus && (
+          <div className="mt-3 p-2 rounded-md bg-blue-500/5 border border-blue-500/20 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-blue-500 font-medium truncate flex-1 pr-2">{pullStatus}</span>
+              {pullProgress > 0 && <span className="font-mono text-[10px] text-blue-500">{pullProgress}%</span>}
+            </div>
+            {pullProgress > 0 && <ProgressBar percent={pullProgress} color="bg-blue-500" />}
+          </div>
+        )}
       </section>
 
       {/* Subagent Activity */}

@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/stats", tags=["stats"])
 
 _STATUS_FILE = os.environ.get("SUBAGENT_STATUS_FILE", "/app/logs/subagent_status.json")
-_OLLAMA_BASE = os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+_OLLAMA_BASE = os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal:11435")
 
 
 def _get_system_ram() -> dict:
@@ -70,32 +70,47 @@ def _get_system_ram() -> dict:
 
 
 async def _get_ollama_status() -> dict:
-    """Check Ollama connectivity and running models."""
+    """Check Ollama connectivity, available models, and running models."""
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
-            # Check if Ollama is reachable
-            resp = await client.get(f"{_OLLAMA_BASE}/api/tags")
-            if resp.status_code != 200:
-                return {"reachable": False, "models": [], "total_vram_used": 0}
+            # Check if Ollama is reachable and get all available models (tags)
+            tags_resp = await client.get(f"{_OLLAMA_BASE}/api/tags")
+            if tags_resp.status_code != 200:
+                return {"reachable": False, "models": [], "available": [], "total_vram_used": 0}
+
+            available_data = tags_resp.json()
+            available_models = [
+                {
+                    "name": m.get("name", ""),
+                    "size": m.get("size", 0),
+                    "modified_at": m.get("modified_at", ""),
+                }
+                for m in available_data.get("models", [])
+            ]
 
             # Get running models (loaded in memory)
             ps_resp = await client.get(f"{_OLLAMA_BASE}/api/ps")
-            models = []
+            running_models = []
             total_vram = 0
             if ps_resp.status_code == 200:
                 data = ps_resp.json()
                 for m in data.get("models", []):
                     size_vram = m.get("size_vram", 0)
                     total_vram += size_vram
-                    models.append({
+                    running_models.append({
                         "name": m.get("name", ""),
                         "size_vram": size_vram,
                         "size": m.get("size", 0),
                     })
 
-            return {"reachable": True, "models": models, "total_vram_used": total_vram}
+            return {
+                "reachable": True,
+                "models": running_models,
+                "available": available_models,
+                "total_vram_used": total_vram
+            }
     except Exception:
-        return {"reachable": False, "models": [], "total_vram_used": 0}
+        return {"reachable": False, "models": [], "available": [], "total_vram_used": 0}
 
 
 def _get_subagent_status() -> list:
