@@ -13,6 +13,8 @@ import {
   XCircleIcon,
   ClockIcon,
   FlaskConicalIcon,
+  PlayIcon,
+  PlusCircleIcon,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -39,10 +41,13 @@ function ProgressBar({ percent, color = "bg-primary" }: { percent: number; color
 /** Match a configured model to its live Ollama process data by model ID. */
 function findOllamaModel(configured: any, ollamaModels: any[]): any | null {
   if (!configured?.model) return null;
+  const configModel = configured.model.toLowerCase();
   return ollamaModels.find((om) => {
     const ollamaName = (om.name ?? "").toLowerCase();
-    const configModel = configured.model.toLowerCase();
-    return ollamaName === configModel || ollamaName.startsWith(configModel);
+    // Strict match or name:latest match
+    return ollamaName === configModel || 
+           ollamaName === `${configModel}:latest` ||
+           (configModel.includes(':') === false && ollamaName.split(':')[0] === configModel);
   }) ?? null;
 }
 
@@ -194,6 +199,36 @@ export function Dashboard() {
     }
   };
 
+  const handleAssignModel = async (roleName: string, modelIdentifier: string) => {
+    try {
+      const res = await fetch(`/api/models/${roleName}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: modelIdentifier }),
+      });
+      if (!res.ok) throw new Error("Assignment failed");
+      // UI will update on next stats poll
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  const handleRunModel = async (name: string) => {
+    setPullStatus(`Waking up ${name}...`);
+    try {
+      // Just a dummy request to trigger loading
+      await fetch("/api/ollama/pull", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: name }),
+      });
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setPullStatus("");
+    }
+  };
+
   // Clear stale scores and subagent data when navigating to a different chat
   useEffect(() => {
     if (pathname !== prevPathRef.current) {
@@ -288,10 +323,20 @@ export function Dashboard() {
         <div className="flex items-center gap-1.5 mb-2 font-medium text-foreground">
           <CpuIcon className="size-3.5" />
           <span>Models</span>
+          <button 
+            onClick={() => {
+              setError(false);
+              setStats(null);
+            }}
+            className="ml-auto p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground"
+            title="Refresh stats"
+          >
+            <LoaderIcon className={`size-3 ${!stats ? "animate-spin" : ""}`} />
+          </button>
           {ollama?.reachable ? (
-            <WifiIcon className="size-3 text-green-500 ml-auto" />
+            <WifiIcon className="size-3 text-green-500" />
           ) : (
-            <WifiOffIcon className="size-3 text-red-400 ml-auto" />
+            <WifiOffIcon className="size-3 text-red-400" />
           )}
         </div>
 
@@ -381,13 +426,36 @@ export function Dashboard() {
                           <div className="font-mono truncate" title={am.name}>{am.name}</div>
                           <div className="text-[10px] text-muted-foreground">{formatBytes(am.size)}</div>
                         </div>
-                        <button
-                          onClick={() => handleDeleteModel(am.name)}
-                          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/10 text-red-500/70 hover:text-red-500 transition-all"
-                          title="Delete model"
-                        >
-                          <XCircleIcon className="size-3" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleRunModel(am.name)}
+                            className="p-1 rounded hover:bg-primary/10 text-primary/70 hover:text-primary transition-all"
+                            title="Load model into VRAM"
+                          >
+                            <PlayIcon className="size-3" />
+                          </button>
+                          <button
+                            onClick={() => handleAssignModel("qwen", am.name)}
+                            className="p-1 rounded hover:bg-violet-500/10 text-violet-500/70 hover:text-violet-500 transition-all"
+                            title="Assign to Lead Agent"
+                          >
+                            <BrainIcon className="size-3" />
+                          </button>
+                          <button
+                            onClick={() => handleAssignModel("subagent", am.name)}
+                            className="p-1 rounded hover:bg-yellow-500/10 text-yellow-500/70 hover:text-yellow-500 transition-all"
+                            title="Assign to Subagent"
+                          >
+                            <ZapIcon className="size-3" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteModel(am.name)}
+                            className="p-1 rounded hover:bg-red-500/10 text-red-500/70 hover:text-red-500 transition-all"
+                            title="Delete model"
+                          >
+                            <XCircleIcon className="size-3" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                 </div>
@@ -408,13 +476,37 @@ export function Dashboard() {
                       <div className="font-bold">{m.name}</div>
                       <div className="text-[10px] text-muted-foreground">{m.description}</div>
                     </div>
-                    <button
-                      onClick={() => handlePullModel(m.name)}
-                      disabled={isPulling || isInstalled}
-                      className={`px-2 py-1 rounded text-[10px] font-bold ${isInstalled ? "bg-green-500/10 text-green-500" : "bg-primary text-primary-foreground hover:opacity-90"}`}
-                    >
-                      {isInstalled ? "Installed" : "Pull"}
-                    </button>
+                    <div className="flex items-center gap-1">
+                      {isInstalled ? (
+                        <>
+                          <button
+                            onClick={() => handleAssignModel("qwen", m.name)}
+                            className="p-1 rounded hover:bg-violet-500/10 text-violet-500/70 hover:text-violet-500 transition-all"
+                            title="Assign to Lead Agent"
+                          >
+                            <BrainIcon className="size-3" />
+                          </button>
+                          <button
+                            onClick={() => handleAssignModel("subagent", m.name)}
+                            className="p-1 rounded hover:bg-yellow-500/10 text-yellow-500/70 hover:text-yellow-500 transition-all"
+                            title="Assign to Subagent"
+                          >
+                            <ZapIcon className="size-3" />
+                          </button>
+                          <div className="px-2 py-1 rounded text-[10px] font-bold bg-green-500/10 text-green-500 ml-1">
+                            Installed
+                          </div>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => handlePullModel(m.name)}
+                          disabled={isPulling}
+                          className="px-2 py-1 rounded text-[10px] font-bold bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                        >
+                          Pull
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}

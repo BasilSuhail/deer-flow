@@ -26,6 +26,7 @@ class AppConfig(BaseModel):
     tools: list[ToolConfig] = Field(default_factory=list, description="Available tools")
     tool_groups: list[ToolGroupConfig] = Field(default_factory=list, description="Tool groups")
     checkpointer: CheckpointerConfig | None = Field(default=None, description="Checkpointer config")
+    subagents: dict[str, Any] | None = Field(default=None, description="Subagent system config")
     model_config = ConfigDict(extra="allow", frozen=False)
 
     @classmethod
@@ -87,6 +88,23 @@ class AppConfig(BaseModel):
 
     def get_tool_config(self, name: str) -> ToolConfig | None:
         return next((t for t in self.tools if t.name == name), None)
+
+    def to_file(self, config_path: str | None = None) -> None:
+        """Save current config to YAML file."""
+        resolved_path = self.resolve_config_path(config_path)
+        
+        # We want to preserve comments and structure as much as possible, 
+        # but safe_dump will rewrite the file.
+        # For now, simple dump is sufficient for this tool.
+        data = self.model_dump(exclude_none=True)
+        
+        # Clean up data for YAML (convert enums/paths if needed)
+        with open(resolved_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(data, f, sort_keys=False, indent=2)
+        
+        # Update cache info
+        global _app_config_mtime
+        _app_config_mtime = resolved_path.stat().st_mtime
 
 
 # Singleton cache
