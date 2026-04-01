@@ -222,7 +222,7 @@ export function Dashboard() {
       });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.detail || "Load failed");
+        throw new Error(data.detail ?? "Load failed");
       }
       setPullStatus(`Model ${name} is ready!`);
     } catch (err: any) {
