@@ -114,7 +114,7 @@ export function Dashboard() {
   const [pullProgress, setPullProgress] = useState(0);
 
   const handlePullModel = async (name?: string) => {
-    const target = name || pullModelName;
+    const target = name ?? pullModelName;
     let sanitizedName = target.trim().toLowerCase().replace(/\s+/g, '');
     if (!sanitizedName) return;
 

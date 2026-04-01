@@ -6,9 +6,6 @@ on:
   pull_request:
     branches: [ main ]
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   lint:
     name: "Lint & Type Check"
@@ -33,7 +30,7 @@ jobs:
         run: |
           cd backend
           uv sync
-          uv run ruff check .
+          uv run ruff check . --exclude .venv
 
       - name: Frontend Lint & Type Check
         run: |
@@ -42,6 +39,26 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm run lint
           pnpm run typecheck
+
+  test:
+    name: "Backend Tests"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Run Pytest
+        run: |
+          cd backend
+          uv sync
+          uv run pytest tests/ --ignore=.venv
 
   build:
     name: "Docker Build"
@@ -58,7 +75,7 @@ jobs:
           export DEER_FLOW_ROOT=$GITHUB_WORKSPACE
           mkdir -p $PNPM_STORE_PATH
           # Build services to ensure Dockerfile and compose config is valid
-          docker compose -f docker/docker-compose-dev.yaml build
+          docker compose -f docker/docker-compose-dev.yaml build --quiet
 
   audit:
     name: "Security & Dependency Audit"
