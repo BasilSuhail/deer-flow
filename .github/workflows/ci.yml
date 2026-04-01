@@ -33,7 +33,7 @@ jobs:
         run: |
           cd backend
           uv sync
-          uv run ruff check .
+          uv run ruff check . --exclude .venv
 
       - name: Frontend Lint & Type Check
         run: |
@@ -61,7 +61,7 @@ jobs:
         run: |
           cd backend
           uv sync
-          uv run pytest tests/
+          uv run pytest tests/ --ignore=.venv
 
   build:
     name: "Docker Build"
@@ -78,7 +78,7 @@ jobs:
           export DEER_FLOW_ROOT=$GITHUB_WORKSPACE
           mkdir -p $PNPM_STORE_PATH
           # Build services to ensure Dockerfile and compose config is valid
-          docker compose -f docker/docker-compose-dev.yaml build
+          docker compose -f docker/docker-compose-dev.yaml build --quiet
 
   audit:
     name: "Security & Dependency Audit"
@@ -118,4 +118,4 @@ jobs:
         with:
           base: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           head: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          extra_args: --debug --only-verified
+          extra_args: --debug --only-verified --exclude-paths=.gitignore
