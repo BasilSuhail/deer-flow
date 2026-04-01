@@ -7,7 +7,7 @@ models:
     use: langchain_openai:ChatOpenAI
     model: qwen3.5:9b-q4_K_M
     api_key: "ollama"
-    base_url: http://host.docker.internal:11435/v1
+    base_url: http://host.docker.internal:11434/v1
     temperature: 0.3
     max_tokens: 4096
 
