@@ -23,6 +23,11 @@ class ModelsListResponse(BaseModel):
     models: list[ModelResponse]
 
 
+class ModelUpdateRequest(BaseModel):
+    """Request model for updating a model configuration."""
+    model: str = Field(..., description="The new provider model identifier (e.g., llama3.1)")
+
+
 @router.get(
     "/models",
     response_model=ModelsListResponse,
@@ -30,34 +35,7 @@ class ModelsListResponse(BaseModel):
     description="Retrieve a list of all available AI models configured in the system.",
 )
 async def list_models() -> ModelsListResponse:
-    """List all available models from configuration.
-
-    Returns model information suitable for frontend display,
-    excluding sensitive fields like API keys and internal configuration.
-
-    Returns:
-        A list of all configured models with their metadata.
-
-    Example Response:
-        ```json
-        {
-            "models": [
-                {
-                    "name": "gpt-4",
-                    "display_name": "GPT-4",
-                    "description": "OpenAI GPT-4 model",
-                    "supports_thinking": false
-                },
-                {
-                    "name": "claude-3-opus",
-                    "display_name": "Claude 3 Opus",
-                    "description": "Anthropic Claude 3 Opus model",
-                    "supports_thinking": true
-                }
-            ]
-        }
-        ```
-    """
+    """List all available models from configuration."""
     config = get_app_config()
     models = [
         ModelResponse(
@@ -77,30 +55,9 @@ async def list_models() -> ModelsListResponse:
     "/models/{model_name}",
     response_model=ModelResponse,
     summary="Get Model Details",
-    description="Retrieve detailed information about a specific AI model by its name.",
 )
 async def get_model(model_name: str) -> ModelResponse:
-    """Get a specific model by name.
-
-    Args:
-        model_name: The unique name of the model to retrieve.
-
-    Returns:
-        Model information if found.
-
-    Raises:
-        HTTPException: 404 if model not found.
-
-    Example Response:
-        ```json
-        {
-            "name": "gpt-4",
-            "display_name": "GPT-4",
-            "description": "OpenAI GPT-4 model",
-            "supports_thinking": false
-        }
-        ```
-    """
+    """Get a specific model by name."""
     config = get_app_config()
     model = config.get_model_config(model_name)
     if model is None:
@@ -113,4 +70,36 @@ async def get_model(model_name: str) -> ModelResponse:
         description=model.description,
         supports_thinking=model.supports_thinking,
         supports_reasoning_effort=model.supports_reasoning_effort,
+    )
+
+
+@router.patch(
+    "/models/{role_name}",
+    response_model=ModelResponse,
+    summary="Update Role Model",
+    description="Assign a specific model identifier to a configured role (e.g., Lead Agent)."
+)
+async def update_model(role_name: str, request: ModelUpdateRequest) -> ModelResponse:
+    """Update the model identifier for a specific role."""
+    config = get_app_config()
+    model_config = config.get_model_config(role_name)
+    if model_config is None:
+        raise HTTPException(status_code=404, detail=f"Role '{role_name}' not found")
+
+    # Update the identifier
+    model_config.model = request.model
+    
+    # Save back to file
+    try:
+        config.to_file()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save configuration: {e}")
+
+    return ModelResponse(
+        name=model_config.name,
+        model=model_config.model,
+        display_name=model_config.display_name,
+        description=model_config.description,
+        supports_thinking=model_config.supports_thinking,
+        supports_reasoning_effort=model_config.supports_reasoning_effort,
     )
