@@ -11,6 +11,12 @@ cd repo && ./boom.sh
 cd repo && make docker-start
 ```
 
+### ⚠️ System Requirements (Docker)
+**DeerFlow development (Next.js 16 + Turbopack) is resource-intensive.**
+- **Minimum Docker RAM:** 8GB (will be slow/unstable)
+- **Recommended Docker RAM:** 12GB - 16GB
+- **Global Settings:** Ensure your Docker Desktop (Settings -> Resources) is set to at least 12GB. If you see a "502 Bad Gateway" error, it usually means the frontend ran out of memory.
+
 ### Stop the Application
 ```bash
 cd repo && make docker-stop
