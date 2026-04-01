@@ -103,3 +103,30 @@ Update the TAVILY_API_KEY in the .env file with your actual key if you wish to u
 DeerFlow comes with a functional web interface.
 Once started, it is available locally at http://localhost:2026.
 You can use this interface to enter research topics and view generated reports.
+
+## 🧪 Recommended Research Prompt
+Copy and paste this into DeerFlow to get an elite-level research report:
+
+> I want you to act as an elite research analyst with deep experience in synthesizing complex information into clear, concise insights.
+>
+> Your task is to conduct a comprehensive research breakdown on the following topic:
+>
+> **[ Insert your topic here ]**
+>
+> Here’s how I want you to proceed:
+>
+> 1. **Overview:** Start with a brief, plain-English overview of the topic.
+> 2. **Structure:** Break the topic into 3–5 major sub-topics or components.
+> 3. **Deep Dive:** For each sub-topic, provide:
+>    - A short definition or explanation.
+>    - Key facts, trends, or recent developments.
+>    - Any major debates or differing perspectives.
+> 4. **Evidence:** Include notable data, statistics, or real-world examples where relevant.
+> 5. **Resources:** Recommend 3–5 high-quality resources for further reading (articles, papers, videos, or tools).
+> 6. **Smart Summary:** End with a 5-bullet point executive briefing for a fast but insightful grasp of the topic.
+>
+> **Guidelines:**
+> - Write in a clear, structured format.
+> - Prioritize relevance, accuracy, and clarity.
+> - No fluff, just value. Act like you're preparing a research memo for a CEO or investor.
+
