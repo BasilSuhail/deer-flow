@@ -77,15 +77,14 @@ function SubagentStatusLabel({ status }: { status: string }) {
   return <span className={styles[status] ?? "text-muted-foreground"}>{status}</span>;
 }
 
-// Role labels for configured models by position
-const MODEL_ROLES: { label: string; icon: typeof BrainIcon; description: string }[] = [
-  { label: "Lead Agent", icon: BrainIcon, description: "Planning, tool calling & orchestration" },
-  { label: "Subagent", icon: ZapIcon, description: "Research, execution & web search" },
+// Simplified role labels for configured models
+const MODEL_ROLES = [
+  { label: "AI Model", icon: BrainIcon, description: "Primary model for research & reasoning" },
 ];
 
 const DISCOVER_MODELS = [
   { name: "llama3.1:8b", description: "Meta's most capable 8B model" },
-  { name: "qwen2.5:7b", description: "Strong reasoning, excellent for subagents" },
+  { name: "qwen2.5:7b", description: "Strong reasoning, excellent for research" },
   { name: "mistral:7b", description: "The classic high-performance 7B" },
   { name: "phi3:mini", description: "Fast, compact, ideal for small tasks" },
   { name: "nomic-embed-text", description: "Required for document processing" },
@@ -214,18 +213,22 @@ export function Dashboard() {
   };
 
   const handleRunModel = async (name: string) => {
-    setPullStatus(`Waking up ${name}...`);
+    setPullStatus(`Loading ${name} into memory...`);
     try {
-      // Just a dummy request to trigger loading
-      await fetch("/api/ollama/pull", {
+      const res = await fetch("/api/ollama/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: name }),
       });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail ?? "Load failed");
+      }
+      setPullStatus(`Model ${name} is ready!`);
     } catch (err: any) {
-      console.error(err);
+      alert(`Error: ${err.message}`);
     } finally {
-      setPullStatus("");
+      setTimeout(() => setPullStatus(""), 3000);
     }
   };
 
@@ -346,7 +349,7 @@ export function Dashboard() {
             onClick={() => setActiveTab("installed")}
             className={`pb-1 transition-colors ${activeTab === "installed" ? "text-primary border-b border-primary" : "text-muted-foreground hover:text-foreground"}`}
           >
-            Installed
+            Library
           </button>
           <button
             onClick={() => setActiveTab("discover")}
@@ -368,9 +371,9 @@ export function Dashboard() {
               </div>
             )}
 
-            {/* Configured Roles */}
+            {/* Active Model Status */}
             <div className="space-y-2">
-              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Roles</span>
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Configuration</span>
               {configuredModels.map((cm: any, i: number) => {
                 const role = MODEL_ROLES[i] ?? MODEL_ROLES[MODEL_ROLES.length - 1]!;
                 const RoleIcon = role.icon;
@@ -402,7 +405,7 @@ export function Dashboard() {
                       </span>
                     </div>
                     <div className="font-mono text-muted-foreground truncate" title={cm.model}>
-                      {cm.display_name ?? cm.model}
+                      {cm.model}
                     </div>
                     <div className="flex items-center justify-between mt-1 text-muted-foreground">
                       <span>{role.description}</span>
@@ -416,48 +419,50 @@ export function Dashboard() {
             {/* Other Installed Models */}
             {availableModels.length > 0 && (
               <div className="space-y-2">
-                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Library</span>
-                <div className="max-h-[200px] overflow-y-auto pr-1 space-y-1.5 custom-scrollbar">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">All Models</span>
+                <div className="max-h-[300px] overflow-y-auto pr-1 space-y-1.5 custom-scrollbar">
                   {availableModels
-                    .filter(am => !configuredModels.some(cm => cm.model.toLowerCase() === am.name.toLowerCase()))
-                    .map((am: any) => (
-                      <div key={am.name} className="group flex items-center justify-between p-1.5 rounded hover:bg-secondary/30 transition-colors border border-transparent hover:border-border/50">
-                        <div className="min-w-0 flex-1 mr-2">
-                          <div className="font-mono truncate" title={am.name}>{am.name}</div>
-                          <div className="text-[10px] text-muted-foreground">{formatBytes(am.size)}</div>
+                    .map((am: any) => {
+                      const isConfigured = configuredModels.some(cm => cm.model.toLowerCase() === am.name.toLowerCase());
+                      const isRunning = runningModels.some(rm => rm.name.toLowerCase() === am.name.toLowerCase());
+                      
+                      return (
+                        <div key={am.name} className="group flex items-center justify-between p-1.5 rounded hover:bg-secondary/30 transition-colors border border-transparent hover:border-border/50">
+                          <div className="min-w-0 flex-1 mr-2">
+                            <div className="flex items-center gap-1.5">
+                              <div className="font-mono truncate" title={am.name}>{am.name}</div>
+                              {isRunning && <span className="size-1 rounded-full bg-green-500" />}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground">{formatBytes(am.size)}</div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {!isRunning && (
+                              <button
+                                onClick={() => handleRunModel(am.name)}
+                                className="p-1 rounded hover:bg-primary/10 text-primary/70 hover:text-primary transition-all"
+                                title="Load into VRAM"
+                              >
+                                <PlayIcon className="size-3" />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleAssignModel("qwen", am.name)}
+                              className={`p-1 rounded transition-all ${isConfigured ? "bg-primary text-primary-foreground" : "hover:bg-primary/10 text-primary/70 hover:text-primary"}`}
+                              title="Select as Primary Model"
+                            >
+                              <PlusCircleIcon className="size-3" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteModel(am.name)}
+                              className="p-1 rounded hover:bg-red-500/10 text-red-500/70 hover:text-red-500 transition-all"
+                              title="Delete model"
+                            >
+                              <XCircleIcon className="size-3" />
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => handleRunModel(am.name)}
-                            className="p-1 rounded hover:bg-primary/10 text-primary/70 hover:text-primary transition-all"
-                            title="Load model into VRAM"
-                          >
-                            <PlayIcon className="size-3" />
-                          </button>
-                          <button
-                            onClick={() => handleAssignModel("qwen", am.name)}
-                            className="p-1 rounded hover:bg-violet-500/10 text-violet-500/70 hover:text-violet-500 transition-all"
-                            title="Assign to Lead Agent"
-                          >
-                            <BrainIcon className="size-3" />
-                          </button>
-                          <button
-                            onClick={() => handleAssignModel("subagent", am.name)}
-                            className="p-1 rounded hover:bg-yellow-500/10 text-yellow-500/70 hover:text-yellow-500 transition-all"
-                            title="Assign to Subagent"
-                          >
-                            <ZapIcon className="size-3" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteModel(am.name)}
-                            className="p-1 rounded hover:bg-red-500/10 text-red-500/70 hover:text-red-500 transition-all"
-                            title="Delete model"
-                          >
-                            <XCircleIcon className="size-3" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                 </div>
               </div>
             )}
@@ -481,17 +486,10 @@ export function Dashboard() {
                         <>
                           <button
                             onClick={() => handleAssignModel("qwen", m.name)}
-                            className="p-1 rounded hover:bg-violet-500/10 text-violet-500/70 hover:text-violet-500 transition-all"
-                            title="Assign to Lead Agent"
+                            className="p-1 rounded hover:bg-primary/10 text-primary/70 hover:text-primary transition-all"
+                            title="Select as Primary Model"
                           >
-                            <BrainIcon className="size-3" />
-                          </button>
-                          <button
-                            onClick={() => handleAssignModel("subagent", m.name)}
-                            className="p-1 rounded hover:bg-yellow-500/10 text-yellow-500/70 hover:text-yellow-500 transition-all"
-                            title="Assign to Subagent"
-                          >
-                            <ZapIcon className="size-3" />
+                            <PlusCircleIcon className="size-3" />
                           </button>
                           <div className="px-2 py-1 rounded text-[10px] font-bold bg-green-500/10 text-green-500 ml-1">
                             Installed
