@@ -57,6 +57,31 @@ async def delete_model(request: PullRequest):
         raise HTTPException(status_code=503, detail="Failed to connect to Ollama service.")
 
 
+@router.post("/run")
+async def run_model(request: PullRequest):
+    """Force load a model by sending a minimal generation request."""
+    model_name = request.model.strip()
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            # Sending a request with stream: false and a tiny prompt forces loading
+            response = await client.post(
+                f"{_OLLAMA_BASE}/api/generate",
+                json={
+                    "model": model_name,
+                    "prompt": " ",
+                    "stream": False,
+                    "options": {"num_predict": 1}
+                }
+            )
+            if response.status_code != 200:
+                error_text = await response.aread()
+                raise HTTPException(status_code=response.status_code, detail=f"Ollama error: {error_text.decode('utf-8', errors='ignore')}")
+            return {"status": "success", "model": model_name}
+    except httpx.RequestError as e:
+        logger.error("Failed to connect to Ollama for run: %s", e)
+        raise HTTPException(status_code=503, detail="Failed to connect to Ollama service.")
+
+
 @router.post("/pull")
 async def pull_model(request: PullRequest):
     """Proxy a pull request to the local Ollama instance and stream the response."""

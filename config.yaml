@@ -3,18 +3,9 @@ config_version: 4
 
 models:
   - name: qwen
-    display_name: Lead Agent
+    display_name: AI Model
     use: langchain_openai:ChatOpenAI
     model: qwen3.5:9b-q4_K_M
-    api_key: "ollama"
-    base_url: http://host.docker.internal:11434/v1
-    temperature: 0.3
-    max_tokens: 4096
-
-  - name: subagent
-    display_name: Subagent
-    use: langchain_openai:ChatOpenAI
-    model: qwen2.5:7b
     api_key: "ollama"
     base_url: http://host.docker.internal:11434/v1
     temperature: 0.3
