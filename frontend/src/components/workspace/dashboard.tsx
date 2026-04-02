@@ -117,6 +117,29 @@ export function Dashboard() {
   const [pullStatus, setPullStatus] = useState("");
   const [pullProgress, setPullProgress] = useState(0);
 
+  const fetchStats = () => {
+    fetch("/api/stats")
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        setStats(data);
+        setError(false);
+      })
+      .catch(() => setError(true));
+
+    fetch("/api/threads/research-scores")
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data?.scores?.length) setScores(data);
+        else setScores(null);
+      })
+      .catch(() => {
+        /* ignore */
+      });
+  };
+
   const handlePullModel = async (name?: string) => {
     const target = name ?? pullModelName;
     let sanitizedName = target.trim().toLowerCase().replace(/\s+/g, '');
@@ -206,15 +229,18 @@ export function Dashboard() {
         body: JSON.stringify({ model: modelIdentifier }),
       });
       if (!res.ok) throw new Error("Assignment failed");
-      // UI will update on next stats poll
+      fetchStats();
     } catch (err: any) {
       alert(`Error: ${err.message}`);
     }
   };
 
   const handleRunModel = async (name: string) => {
-    setPullStatus(`Loading ${name} into memory...`);
+    setPullStatus(`Loading ${name}...`);
     try {
+      // Assign to config first so Configuration section updates immediately
+      await handleAssignModel("qwen", name);
+
       const res = await fetch("/api/ollama/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -224,11 +250,12 @@ export function Dashboard() {
         const data = await res.json();
         throw new Error(data.detail ?? "Load failed");
       }
-      setPullStatus(`Model ${name} is ready!`);
+      setPullStatus(`${name} loading in background — watch the green dot`);
+      fetchStats();
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      setPullStatus(`Error: ${err.message}`);
     } finally {
-      setTimeout(() => setPullStatus(""), 3000);
+      setTimeout(() => setPullStatus(""), 5000);
     }
   };
 
@@ -243,28 +270,6 @@ export function Dashboard() {
   }, [pathname]);
 
   useEffect(() => {
-    const fetchStats = () => {
-      fetch("/api/stats")
-        .then((res) => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          return res.json();
-        })
-        .then((data) => {
-          setStats(data);
-          setError(false);
-        })
-        .catch(() => setError(true));
-
-      fetch("/api/threads/research-scores")
-        .then((res) => res.ok ? res.json() : null)
-        .then((data) => {
-          if (data?.scores?.length) setScores(data);
-          else setScores(null);
-        })
-        .catch(() => {
-          /* ignore */
-        });
-    };
     fetchStats();
     const interval = setInterval(fetchStats, 2000);
     return () => clearInterval(interval);

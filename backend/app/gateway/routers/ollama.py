@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -59,27 +60,21 @@ async def delete_model(request: PullRequest):
 
 @router.post("/run")
 async def run_model(request: PullRequest):
-    """Force load a model by sending a minimal generation request."""
+    """Trigger loading a model into VRAM (non-blocking — returns immediately)."""
     model_name = request.model.strip()
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            # Sending a request with stream: false and a tiny prompt forces loading
-            response = await client.post(
-                f"{_OLLAMA_BASE}/api/generate",
-                json={
-                    "model": model_name,
-                    "prompt": " ",
-                    "stream": False,
-                    "options": {"num_predict": 1}
-                }
-            )
-            if response.status_code != 200:
-                error_text = await response.aread()
-                raise HTTPException(status_code=response.status_code, detail=f"Ollama error: {error_text.decode('utf-8', errors='ignore')}")
-            return {"status": "success", "model": model_name}
-    except httpx.RequestError as e:
-        logger.error("Failed to connect to Ollama for run: %s", e)
-        raise HTTPException(status_code=503, detail="Failed to connect to Ollama service.")
+
+    async def _load_in_background() -> None:
+        try:
+            async with httpx.AsyncClient(timeout=300.0) as client:
+                await client.post(
+                    f"{_OLLAMA_BASE}/api/generate",
+                    json={"model": model_name, "prompt": " ", "stream": False, "options": {"num_predict": 1}},
+                )
+        except Exception:
+            logger.debug("Background model load finished for %s", model_name)
+
+    asyncio.create_task(_load_in_background())
+    return {"status": "loading", "model": model_name}
 
 
 @router.post("/pull")
