@@ -14,6 +14,9 @@ router = APIRouter(prefix="/api/ollama", tags=["ollama"])
 
 _OLLAMA_BASE = os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
 
+# Keep strong references to background tasks so they aren't garbage collected
+_background_tasks: set[asyncio.Task] = set()
+
 
 class PullRequest(BaseModel):
     model: str
@@ -73,7 +76,9 @@ async def run_model(request: PullRequest):
         except Exception:
             logger.debug("Background model load finished for %s", model_name)
 
-    asyncio.create_task(_load_in_background())
+    task = asyncio.create_task(_load_in_background())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
     return {"status": "loading", "model": model_name}
 
 

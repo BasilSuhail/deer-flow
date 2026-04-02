@@ -110,6 +110,7 @@ export function Dashboard() {
   const [error, setError] = useState(false);
   const [activeTab, setActiveTab] = useState<"installed" | "discover">("installed");
   const prevPathRef = useRef(pathname);
+  const isPollingRef = useRef(false);
 
   // Model Pulling State
   const [pullModelName, setPullModelName] = useState("");
@@ -118,26 +119,32 @@ export function Dashboard() {
   const [pullProgress, setPullProgress] = useState(0);
 
   const fetchStats = () => {
-    fetch("/api/stats")
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then((data) => {
-        setStats(data);
-        setError(false);
-      })
-      .catch(() => setError(true));
+    // Skip if a poll is already in flight — prevents request pile-up during model loads
+    if (isPollingRef.current) return;
+    isPollingRef.current = true;
 
-    fetch("/api/threads/research-scores")
-      .then((res) => res.ok ? res.json() : null)
-      .then((data) => {
-        if (data?.scores?.length) setScores(data);
-        else setScores(null);
-      })
-      .catch(() => {
-        /* ignore */
-      });
+    Promise.all([
+      fetch("/api/stats")
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
+        })
+        .then((data) => {
+          setStats(data);
+          setError(false);
+        })
+        .catch(() => setError(true)),
+
+      fetch("/api/threads/research-scores")
+        .then((res) => res.ok ? res.json() : null)
+        .then((data) => {
+          if (data?.scores?.length) setScores(data);
+          else setScores(null);
+        })
+        .catch(() => { /* ignore */ }),
+    ]).finally(() => {
+      isPollingRef.current = false;
+    });
   };
 
   const handlePullModel = async (name?: string) => {

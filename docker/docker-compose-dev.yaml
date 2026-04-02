@@ -60,7 +60,7 @@ services:
       context: ../
       dockerfile: backend/Dockerfile
     container_name: deer-flow-gateway
-    command: sh -c "cd backend && PYTHONPATH=. uv run uvicorn app.gateway.app:app --host 0.0.0.0 --port 8001 --reload --reload-include='*.yaml .env'"
+    command: sh -c "cd backend && PYTHONPATH=. uv run uvicorn app.gateway.app:app --host 0.0.0.0 --port 8001 --reload"
     volumes:
       - ../backend/:/app/backend/
       - gateway-venv:/app/backend/.venv
