@@ -1,5 +1,6 @@
 """System stats endpoint for the frontend dashboard."""
 
+import asyncio
 import json
 import logging
 import os
@@ -73,28 +74,29 @@ async def _get_ollama_status() -> dict:
     """Check Ollama connectivity, available models, and running models."""
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
-            # Check if Ollama is reachable and get all available models (tags)
-            tags_resp = await client.get(f"{_OLLAMA_BASE}/api/tags")
-            if tags_resp.status_code != 200:
+            # Fetch tags and ps in parallel to halve the wait time
+            tags_resp, ps_resp = await asyncio.gather(
+                client.get(f"{_OLLAMA_BASE}/api/tags"),
+                client.get(f"{_OLLAMA_BASE}/api/ps"),
+                return_exceptions=True,
+            )
+
+            if isinstance(tags_resp, Exception) or tags_resp.status_code != 200:
                 return {"reachable": False, "models": [], "available": [], "total_vram_used": 0}
 
-            available_data = tags_resp.json()
             available_models = [
                 {
                     "name": m.get("name", ""),
                     "size": m.get("size", 0),
                     "modified_at": m.get("modified_at", ""),
                 }
-                for m in available_data.get("models", [])
+                for m in tags_resp.json().get("models", [])
             ]
 
-            # Get running models (loaded in memory)
-            ps_resp = await client.get(f"{_OLLAMA_BASE}/api/ps")
             running_models = []
             total_vram = 0
-            if ps_resp.status_code == 200:
-                data = ps_resp.json()
-                for m in data.get("models", []):
+            if not isinstance(ps_resp, Exception) and ps_resp.status_code == 200:
+                for m in ps_resp.json().get("models", []):
                     size_vram = m.get("size_vram", 0)
                     total_vram += size_vram
                     running_models.append({
@@ -107,7 +109,7 @@ async def _get_ollama_status() -> dict:
                 "reachable": True,
                 "models": running_models,
                 "available": available_models,
-                "total_vram_used": total_vram
+                "total_vram_used": total_vram,
             }
     except Exception:
         return {"reachable": False, "models": [], "available": [], "total_vram_used": 0}
